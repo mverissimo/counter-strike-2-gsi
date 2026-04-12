@@ -1,5 +1,5 @@
 {
-  "name": "utils",
+  "name": "@counter-strike-2-gsi/server",
   "version": "0.0.0",
   "description": "A starter for creating a TypeScript package.",
   "homepage": "https://github.com/author/library#readme",
@@ -28,12 +28,26 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm run build"
   },
+  "dependencies": {
+    "@counter-strike-2-gsi/types": "workspace:*",
+    "@fastify/deepmerge": "catalog:",
+    "fast-deep-equal": "catalog:",
+    "microdiff": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "^25.3.5",
     "@typescript/native-preview": "7.0.0-dev.20260309.1",
+    "arktype": "catalog:",
     "bumpp": "^10.4.1",
+    "type-fest": "catalog:",
     "typescript": "^5.9.3",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
+  },
+  "inlinedDependencies": {
+    "@ark/schema": "0.56.0",
+    "@ark/util": "0.56.0",
+    "arkregex": "0.0.5",
+    "arktype": "2.2.0"
   }
 }
