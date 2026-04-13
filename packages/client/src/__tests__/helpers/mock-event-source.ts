@@ -82,7 +82,6 @@ export class MockEventSource {
    */
   error(readyState: number = MockEventSource.CONNECTING) {
     this.readyState = readyState;
-
     this.onerror?.(new Event("error"));
   }
 

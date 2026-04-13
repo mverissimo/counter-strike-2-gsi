@@ -127,6 +127,7 @@ export function createSSEClient(options: SSEClientOptions) {
 
     if (!set) {
       set = new Set();
+
       handlers.set(event, set);
 
       attach(event);
@@ -139,6 +140,7 @@ export function createSSEClient(options: SSEClientOptions) {
 
       if (set!.size === 0) {
         handlers.delete(event);
+
         detach(event);
       }
     };

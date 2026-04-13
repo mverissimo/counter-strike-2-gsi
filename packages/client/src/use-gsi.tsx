@@ -1,71 +1,65 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import type { ReactNode } from "react";
 import type { EventMap, EventPayload, GeneratedEventMap } from "@counter-strike-2-gsi/types";
 
-import { createSSEClient } from "./client";
-import type { SSEError, SSEStatus } from "./client";
+import { createSSEClient } from "./clients/sse";
+import type { SSEError, SSEStatus } from "./clients/sse";
+import { createWSClient } from "./clients/ws";
+import type { WSError } from "./clients/ws";
+
+export type GSIStatus = SSEStatus;
+export type GSIError = SSEError | WSError;
+
+const UNDEFINED_SERVER_SNAPSHOT = () => undefined;
+const DISCONNECTED_SERVER_SNAPSHOT = () => "disconnected" as const;
+
+function isWSUrl(url: string) {
+  return url.startsWith("ws://") || url.startsWith("wss://");
+}
 
 interface Store {
-  /**
-   * Snapshot getter for the current connection status,
-   * used by `useSyncExternalStore`.
-   */
-  getStatus: () => SSEStatus;
-
-  /**
-   * Snapshot getter for the latest payload of a given event,
-   * or `undefined` if none has arrived yet.
-   */
+  getStatus: () => GSIStatus;
   getEvent: <K extends keyof EventMap>(event: K) => EventPayload<K> | undefined;
-
-  /**
-   * Register a listener for connection status changes;
-   * returns an unsubscribe function. Acquires a ref-count slot.
-   */
   subscribeStatus: (listener: () => void) => () => void;
-
-  /**
-   * Register a listener for a specific event;
-   * returns an unsubscribe function. Opens the underlying SSE subscription on first listener and closes it on last.
-   */
   subscribeEvent: <K extends keyof EventMap>(event: K, listener: () => void) => () => void;
-
-  /**
-   * Force-open the SSE connection, bypassing ref-counting.
-   * Escape hatch for manual lifecycle control.
-   */
   connect: () => void;
-
-  /**
-   * Force-close the SSE connection, bypassing ref-counting.
-   * Escape hatch for manual lifecycle control.
-   */
   disconnect: () => void;
 }
 
 interface CreateStoreOptions {
   /**
-   * URL of the SSE endpoint exposed by a GSI handler.
+   * URL of the GSI endpoint. `ws://`/`wss://` selects the WebSocket
+   * transport; anything else uses SSE.
    */
   url: string;
 
   /**
-   * Optional callback invoked when the underlying SSE client surfaces an error.
+   * Optional callback invoked when the underlying client surfaces an error.
    */
-  onError?: (error: SSEError) => void;
+  onError?: (error: GSIError) => void;
 }
 
-function createStore(props: CreateStoreOptions) {
+function createStore(props: CreateStoreOptions): Store {
   const { url, onError } = props;
 
   const snapshot: Partial<Record<keyof EventMap, unknown>> = {};
-  let status: SSEStatus = "disconnected";
+  let status: GSIStatus = "disconnected";
 
   const eventListeners = new Map<keyof EventMap, Set<() => void>>();
   const statusListeners = new Set<() => void>();
   const clientUnsubs = new Map<keyof EventMap, () => void>();
 
-  const client = createSSEClient({
+  const factory = isWSUrl(url) ? createWSClient : createSSEClient;
+
+  const client = factory({
     url,
     onError,
     onStatusChange(next) {
@@ -196,11 +190,17 @@ function useStore() {
 export function useGSIDelta<K extends keyof GeneratedEventMap>(event: K) {
   const store = useStore();
 
-  return useSyncExternalStore(
-    (l) => store.subscribeEvent(event, l),
-    () => store.getEvent(event) as GeneratedEventMap[K] | undefined,
-    () => undefined,
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribeEvent(event, listener),
+    [store, event],
   );
+
+  const getSnapshot = useCallback(
+    () => store.getEvent(event) as GeneratedEventMap[K] | undefined,
+    [store, event],
+  );
+
+  return useSyncExternalStore(subscribe, getSnapshot, UNDEFINED_SERVER_SNAPSHOT);
 }
 
 /**
@@ -218,11 +218,7 @@ export function useGSIEvent<K extends keyof GeneratedEventMap>(event: K) {
 export function useGSIStatus() {
   const store = useStore();
 
-  return useSyncExternalStore(
-    store.subscribeStatus,
-    store.getStatus,
-    () => "disconnected" as const,
-  );
+  return useSyncExternalStore(store.subscribeStatus, store.getStatus, DISCONNECTED_SERVER_SNAPSHOT);
 }
 
 /**
@@ -233,8 +229,11 @@ export function useGSIStatus() {
 export function useGSIClient() {
   const store = useStore();
 
-  return {
-    connect: store.connect,
-    disconnect: store.disconnect,
-  };
+  return useMemo(
+    () => ({
+      connect: store.connect,
+      disconnect: store.disconnect,
+    }),
+    [store],
+  );
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createSSEClient } from "../../use-sse/client";
-import { MockEventSource } from "../helpers/mock-event-source";
+import { createSSEClient } from "../clients/sse";
+import { MockEventSource } from "./helpers/mock-event-source";
 
 beforeEach(() => {
   MockEventSource.reset();

@@ -1,12 +1,9 @@
+// @vitest-environment happy-dom
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GSIProvider, useGSIClient, useGSIDelta, useGSIEvent, useGSIStatus } from "../../use-sse";
-import { MockEventSource } from "../helpers/mock-event-source";
-
-interface OnRender {
-  onRender?: () => void;
-}
+import { GSIProvider, useGSIClient, useGSIDelta, useGSIEvent, useGSIStatus } from "../use-gsi";
+import { MockEventSource } from "./helpers/mock-event-source";
 
 beforeEach(() => {
   MockEventSource.reset();
@@ -17,15 +14,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function HP({ onRender }: OnRender) {
+function HP({ onRender }: { onRender?: () => void }) {
   const hp = useGSIEvent("player:state:health");
-
   onRender?.();
-
   return <div data-testid="hp">{JSON.stringify(hp) ?? "—"}</div>;
 }
 
-function Phase({ onRender }: OnRender) {
+function Phase({ onRender }: { onRender?: () => void }) {
   const phase = useGSIEvent("round:phase");
   onRender?.();
   return <div data-testid="phase">{JSON.stringify(phase) ?? "—"}</div>;
@@ -39,9 +34,7 @@ describe("@client: hooks", () => {
   describe("useGSIEvent", () => {
     it("throws when used outside <GSIProvider>", () => {
       const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-
       expect(() => render(<HP />)).toThrow(/GSIProvider/);
-
       spy.mockRestore();
     });
 
@@ -86,7 +79,9 @@ describe("@client: hooks", () => {
         });
       });
 
+      // Phase re-renders because its slice changed.
       expect(phaseRender.mock.calls.length).toBeGreaterThan(phaseRendersBefore);
+      // HP does not — its slice didn't change.
       expect(hpRender.mock.calls.length).toBe(hpRendersBefore);
     });
   });
@@ -97,9 +92,7 @@ describe("@client: hooks", () => {
 
       function Probe() {
         const delta = useGSIDelta("player:state:health");
-
         seen.push(delta);
-
         return null;
       }
 
@@ -117,10 +110,7 @@ describe("@client: hooks", () => {
         });
       });
 
-      expect(seen.at(-1)).toEqual({
-        previous: 100,
-        current: 80,
-      });
+      expect(seen.at(-1)).toEqual({ previous: 100, current: 80 });
     });
   });
 
@@ -177,7 +167,6 @@ describe("@client: hooks", () => {
       );
 
       const src = MockEventSource.latest();
-
       expect(src.listenerCount("player:state:health")).toBe(1);
       expect(src.listenerCount("round:phase")).toBe(0);
     });
