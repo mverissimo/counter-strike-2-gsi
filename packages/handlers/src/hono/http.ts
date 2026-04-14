@@ -1,5 +1,8 @@
 import type { Context } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+
 import type { GSIHandlerOptions } from "../core/types";
+import { classifyHandlerError } from "../core/http";
 
 /**
  * Creates a Hono handler for CS2 GSI (recommended for new projects).
@@ -13,7 +16,7 @@ import type { GSIHandlerOptions } from "../core/types";
  * }));
  * ```
  */
-export function createHonoHandler(options: GSIHandlerOptions) {
+export function createHonoHandler(options: GSIHandlerOptions<Request>) {
   const { manager, token, onError } = options;
 
   return async (context: Context) => {
@@ -44,15 +47,9 @@ export function createHonoHandler(options: GSIHandlerOptions) {
 
       console.error("[GSI Hono Handler] Error:", error.message);
 
-      const status =
-        error.message.includes("Invalid") || error.message.includes("parse") ? 400 : 500;
+      const { status, body } = classifyHandlerError(error);
 
-      return context.json(
-        {
-          error: process.env.NODE_ENV === "production" ? "Internal server error" : error.message,
-        },
-        status,
-      );
+      return context.json(body, status as ContentfulStatusCode);
     }
   };
 }

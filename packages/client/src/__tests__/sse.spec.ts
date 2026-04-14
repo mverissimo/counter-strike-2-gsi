@@ -324,5 +324,39 @@ describe("@client: createSSEClient", () => {
 
       expect(handler).toHaveBeenCalledWith({ current: 1 });
     });
+
+    it("reconnects after a terminal error without an explicit disconnect", () => {
+      const client = createSSEClient({
+        url: "http://x",
+      });
+
+      client.connect();
+
+      MockEventSource.latest().open();
+      MockEventSource.latest().error(MockEventSource.CLOSED);
+
+      client.connect();
+
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it("re-delivers events through a fresh EventSource after error-then-reconnect", () => {
+      const client = createSSEClient({
+        url: "http://x",
+      });
+      const handler = vi.fn();
+
+      client.subscribe("player:state:health", handler);
+      client.connect();
+
+      MockEventSource.latest().open();
+      MockEventSource.latest().error(MockEventSource.CLOSED);
+
+      client.connect();
+
+      MockEventSource.latest().emit("player:state:health", { current: 77 });
+
+      expect(handler).toHaveBeenCalledWith({ current: 77 });
+    });
   });
 });

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { GSIHandlerOptions } from "../core/types";
+import { classifyHandlerError } from "../core/http";
 
 /**
  * Creates a pure Node.js HTTP handler for CS2 GSI (no external dependencies).
@@ -15,7 +16,7 @@ import type { GSIHandlerOptions } from "../core/types";
  * server.listen(3000);
  * ```
  */
-export function createNodeHandler(options: GSIHandlerOptions) {
+export function createNodeHandler(options: GSIHandlerOptions<IncomingMessage>) {
   const { manager, token, onError } = options;
 
   return async (req: IncomingMessage, res: ServerResponse) => {
@@ -81,19 +82,12 @@ export function createNodeHandler(options: GSIHandlerOptions) {
 
       console.error("[GSI Node Handler] Error:", error.message);
 
-      const status =
-        error.message.includes("Invalid") ||
-        error.message.includes("parse") ||
-        error.message.includes("Empty")
-          ? 400
-          : 500;
+      const { status, body } = classifyHandlerError(error);
 
-      res.writeHead(status, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          error: process.env.NODE_ENV === "production" ? "Internal server error" : error.message,
-        }),
-      );
+      res.writeHead(status, {
+        "Content-Type": "application/json",
+      });
+      res.end(JSON.stringify(body));
     }
   };
 }

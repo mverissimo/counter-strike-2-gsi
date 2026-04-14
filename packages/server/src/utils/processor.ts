@@ -80,7 +80,11 @@ export class Processor {
       }
 
       if (change.path.length >= 2) {
-        const eventName = change.path.slice(0, 3).join(":") as GranularEventName;
+        const p = change.path;
+
+        const eventName = (
+          p.length >= 3 ? `${p[0]}:${p[1]}:${p[2]}` : `${p[0]}:${p[1]}`
+        ) as GranularEventName;
 
         emitter.emit(eventName, this.toDelta(change));
       }

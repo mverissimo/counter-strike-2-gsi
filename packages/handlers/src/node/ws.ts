@@ -48,7 +48,13 @@ export function createNodeWSHandler(options: WSOptions) {
       },
     };
 
-    const session = await core.connect(writer);
+    const session = await core.connect(writer, (err) => {
+      console.error("[WS Node] Write error:", err);
+
+      try {
+        ws.terminate();
+      } catch {}
+    });
 
     ws.on("close", () => session.unsubscribe());
   });

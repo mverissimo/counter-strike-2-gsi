@@ -21,6 +21,13 @@ export interface SSESession {
   unsubscribe: () => void;
 }
 
+/**
+ * Optional per-connection write error callback. Fires when writer
+ * methods throw/reject — useful for observability and for adapters
+ * that need to react to a dead connection.
+ */
+export type SSEWriteErrorHandler = (error: unknown, context: "event" | "heartbeat") => void;
+
 export function createSSECore(options: SSEOptions) {
   const {
     manager,
@@ -88,10 +95,36 @@ export function createSSECore(options: SSEOptions) {
    * Returns a session with an `unsubscribe` callback the adapter
    * must call on client disconnect.
    */
-  async function connect(writer: SSEWriter, lastEventId?: string): Promise<SSESession> {
+  async function connect(
+    writer: SSEWriter,
+    lastEventId?: string,
+    onWriteError?: SSEWriteErrorHandler,
+  ): Promise<SSESession> {
     const clientId = `sse-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
     logger(`[SSE] Client connected: ${clientId}`);
+
+    let closed = false;
+    let writeChain: Promise<void> = Promise.resolve();
+
+    // Serialize writes so async writers (e.g. Hono) can't interleave or
+    // drop events under 64 Hz GSI load. The chain never rejects — errors
+    // are surfaced via onWriteError.
+    const enqueueWrite = (fn: () => void | Promise<void>, context: "event" | "heartbeat") => {
+      writeChain = writeChain.then(async () => {
+        if (closed) {
+          return;
+        }
+
+        try {
+          await fn();
+        } catch (err) {
+          onWriteError?.(err, context);
+        }
+      });
+
+      return writeChain;
+    };
 
     if (lastEventId) {
       const now = Date.now();
@@ -100,7 +133,10 @@ export function createSSECore(options: SSEOptions) {
       );
 
       for (const re of eventsToReplay) {
-        await writer.writeSSE(re.id, String(re.event), JSON.stringify(re.data));
+        await enqueueWrite(
+          () => writer.writeSSE(re.id, String(re.event), JSON.stringify(re.data)),
+          "event",
+        );
       }
 
       if (eventsToReplay.length > 0) {
@@ -108,36 +144,42 @@ export function createSSECore(options: SSEOptions) {
       }
     }
 
-    // Initial state
     if (sendInitialState) {
       const id = generateId();
 
-      await writer.writeSSE(id, "update", JSON.stringify({ ...manager.state }));
+      await enqueueWrite(
+        () => writer.writeSSE(id, "update", JSON.stringify({ ...manager.state })),
+        "event",
+      );
     }
 
-    // Subscribe to GSI events
     const unsubscribers: (() => void)[] = [];
 
     for (const eventName of events) {
       const handler = (payload: EventPayload<typeof eventName>) => {
         const id = generateId();
 
-        writer.writeSSE(id, String(eventName), JSON.stringify(payload));
         addToReplayBuffer(eventName, payload, id);
+
+        void enqueueWrite(
+          () => writer.writeSSE(id, String(eventName), JSON.stringify(payload)),
+          "event",
+        );
       };
 
       unsubscribers.push(manager.on(eventName, handler));
     }
 
-    // Heartbeat
     const heartbeatInterval = setInterval(() => {
-      try {
-        writer.writeComment("heartbeat");
-      } catch {}
+      void enqueueWrite(() => writer.writeComment("heartbeat"), "heartbeat");
     }, heartbeatMs);
 
     return {
       unsubscribe() {
+        if (closed) return;
+
+        closed = true;
+
         logger(`[SSE] Client disconnected: ${clientId}`);
 
         clearInterval(heartbeatInterval);

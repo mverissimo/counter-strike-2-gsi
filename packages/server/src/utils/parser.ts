@@ -12,10 +12,10 @@ interface ParserPayloadOptions {
   strictValidation?: boolean;
 }
 
-export function parsePayload(input: unknown, options: ParserPayloadOptions = {}) {
+export function parsePayload(input: unknown, options: ParserPayloadOptions = {}): SchemaPayload {
   const { strictValidation = false } = options;
 
-  let rawPayload: SchemaPayload;
+  let rawPayload: unknown;
 
   if (typeof input === "string") {
     try {
@@ -31,12 +31,12 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
     );
   }
 
-  if (typeof rawPayload !== "object" || rawPayload === null) {
+  if (typeof rawPayload !== "object" || rawPayload === null || Array.isArray(rawPayload)) {
     throw new Error("GSI parser: Payload must be a non-null object after parsing");
   }
 
   const payloadForValidation = {
-    ...rawPayload,
+    ...(rawPayload as Record<string, unknown>),
   };
   const result = schema.payload(payloadForValidation);
 
@@ -46,7 +46,7 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
     } else {
       console.warn("[GSIManager] GSI payload validation warning:", result.summary);
 
-      return rawPayload;
+      return rawPayload as SchemaPayload;
     }
   }
 

@@ -1,7 +1,7 @@
 import type { GSI } from "@counter-strike-2-gsi/server";
 import type { EventMap } from "@counter-strike-2-gsi/types";
 
-export interface GSIHandlerOptions {
+export interface GSIHandlerOptions<Req = unknown> {
   /**
    * The GSI manager instance
    */
@@ -13,9 +13,9 @@ export interface GSIHandlerOptions {
   token?: string;
 
   /**
-   * Optional error handler
+   * Optional error handler. `req` is typed per-adapter.
    */
-  onError?: (error: Error, req: any) => void;
+  onError?: (error: Error, req: Req) => void;
 
   /**
    * Optional custom path for the GSI POST endpoint
@@ -82,7 +82,7 @@ export interface WSOptions {
   logger?: (message: string) => void;
 }
 
-export interface GSIServerOptions extends GSIHandlerOptions {
+export interface GSIServerOptions<Req = unknown> extends GSIHandlerOptions<Req> {
   /**
    * Enable SSE endpoint
    */

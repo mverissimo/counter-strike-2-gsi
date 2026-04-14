@@ -100,6 +100,10 @@ export function createSSEClient(options: SSEClientOptions) {
       if (source?.readyState === 0) {
         onStatusChange?.("connecting");
       } else if (source?.readyState === 2) {
+        source = null;
+
+        dispatchers.clear();
+
         onStatusChange?.("disconnected");
       }
     };

@@ -72,7 +72,13 @@ export function createHonoWSHandler(options: WSOptions, upgradeWebSocket: Upgrad
           },
         };
 
-        session = await core.connect(writer);
+        session = await core.connect(writer, (err) => {
+          console.error("[WS Hono] Write error:", err);
+
+          try {
+            ws.close();
+          } catch {}
+        });
       },
       onClose() {
         session?.unsubscribe();

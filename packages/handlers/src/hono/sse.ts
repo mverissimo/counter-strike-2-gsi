@@ -28,13 +28,27 @@ export function createSSEHandler(options: SSEOptions) {
         },
       };
 
-      const session = await core.connect(writer, lastEventId);
+      let resolveDone: () => void;
 
-      stream.onAbort(() => session.unsubscribe());
-
-      await new Promise<void>((resolve) => {
-        stream.onAbort(() => resolve());
+      const done = new Promise<void>((r) => {
+        resolveDone = r;
       });
+
+      const session = await core.connect(writer, lastEventId, (err) => {
+        console.error("[SSE Hono] Write error:", err);
+
+        resolveDone();
+      });
+
+      stream.onAbort(() => {
+        session.unsubscribe();
+
+        resolveDone();
+      });
+
+      await done;
+
+      session.unsubscribe();
     });
   };
 }

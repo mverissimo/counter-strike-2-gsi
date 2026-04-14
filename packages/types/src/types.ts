@@ -60,6 +60,8 @@ export type EventMap = GeneratedEventMap & {
     error: Error;
     context: string;
   };
+  "allplayers:joined": Delta<string[]>;
+  "allplayers:left": Delta<string[]>;
 };
 
 /**

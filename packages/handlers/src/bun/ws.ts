@@ -52,7 +52,13 @@ export function createBunWSHandler(options: WSOptions) {
         },
       };
 
-      ws.data.session = await core.connect(writer);
+      ws.data.session = await core.connect(writer, (err) => {
+        console.error("[WS Bun] Write error:", err);
+
+        try {
+          ws.close();
+        } catch {}
+      });
     },
     close(ws: ServerWebSocket<WSData>) {
       ws.data.session?.unsubscribe();

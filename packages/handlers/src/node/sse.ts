@@ -7,7 +7,7 @@ import type { SSEOptions } from "../core/types";
 export function createSSEHandler(options: SSEOptions) {
   const core = createSSECore(options);
 
-  return (req: IncomingMessage, res: ServerResponse) => {
+  return async (req: IncomingMessage, res: ServerResponse) => {
     const lastEventIdHeader = req.headers["last-event-id"];
     const lastEventId = Array.isArray(lastEventIdHeader) ? lastEventIdHeader[0] : lastEventIdHeader;
 
@@ -29,20 +29,28 @@ export function createSSEHandler(options: SSEOptions) {
       },
     };
 
-    core
-      .connect(writer, lastEventId)
-      .then((session) => {
-        const cleanup = () => {
-          session.unsubscribe();
+    let session: Awaited<ReturnType<typeof core.connect>> | undefined;
+    const cleanup = () => {
+      session?.unsubscribe();
 
-          try {
-            res.end();
-          } catch {}
-        };
+      try {
+        res.end();
+      } catch {}
+    };
 
-        req.on("close", cleanup);
-        res.on("close", cleanup);
-      })
-      .catch(() => {});
+    req.on("close", cleanup);
+    res.on("close", cleanup);
+
+    try {
+      session = await core.connect(writer, lastEventId, (err) => {
+        console.error("[SSE Node] Write error:", err);
+
+        cleanup();
+      });
+    } catch (err) {
+      console.error("[SSE Node] Connect error:", err);
+
+      cleanup();
+    }
   };
 }

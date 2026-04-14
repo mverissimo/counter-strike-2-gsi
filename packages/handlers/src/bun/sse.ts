@@ -9,13 +9,11 @@ export function createSSEHandler(options: SSEOptions) {
     const lastEventId = req.headers.get("last-event-id") ?? undefined;
 
     const stream = new ReadableStream({
-      start(controller) {
+      async start(controller) {
         const encoder = new TextEncoder();
 
         const enqueue = (chunk: string) => {
-          try {
-            controller.enqueue(encoder.encode(chunk));
-          } catch {}
+          controller.enqueue(encoder.encode(chunk));
         };
 
         const writer: SSEWriter = {
@@ -29,24 +27,29 @@ export function createSSEHandler(options: SSEOptions) {
 
         enqueue(":ok\n\n");
 
-        core
-          .connect(writer, lastEventId)
-          .then((session) => {
-            req.signal.addEventListener(
-              "abort",
-              () => {
-                session.unsubscribe();
+        let session: Awaited<ReturnType<typeof core.connect>> | undefined;
 
-                try {
-                  controller.close();
-                } catch {}
-              },
-              {
-                once: true,
-              },
-            );
-          })
-          .catch(() => {});
+        const cleanup = () => {
+          session?.unsubscribe();
+
+          try {
+            controller.close();
+          } catch {}
+        };
+
+        req.signal.addEventListener("abort", cleanup, { once: true });
+
+        try {
+          session = await core.connect(writer, lastEventId, (err) => {
+            console.error("[SSE Bun] Write error:", err);
+
+            cleanup();
+          });
+        } catch (err) {
+          console.error("[SSE Bun] Connect error:", err);
+
+          cleanup();
+        }
       },
     });
 

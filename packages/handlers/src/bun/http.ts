@@ -1,4 +1,5 @@
 import type { GSIHandlerOptions } from "../core/types";
+import { classifyHandlerError } from "../core/http";
 
 /**
  * Creates a handler compatible with Bun.serve for CS2 GSI.
@@ -17,7 +18,7 @@ import type { GSIHandlerOptions } from "../core/types";
  * });
  * ```
  */
-export function createBunHandler(options: GSIHandlerOptions) {
+export function createBunHandler(options: GSIHandlerOptions<Request>) {
   const { manager, token, onError } = options;
 
   return async (req: Request): Promise<Response> => {
@@ -65,15 +66,11 @@ export function createBunHandler(options: GSIHandlerOptions) {
 
       console.error("[GSI Bun Handler] Error:", error.message);
 
-      const status =
-        error.message.includes("Invalid") || error.message.includes("parse") ? 400 : 500;
+      const { status, body } = classifyHandlerError(error);
 
-      return Response.json(
-        {
-          error: process.env.NODE_ENV === "production" ? "Internal server error" : error.message,
-        },
-        { status },
-      );
+      return Response.json(body, {
+        status,
+      });
     }
   };
 }

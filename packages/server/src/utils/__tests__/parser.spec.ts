@@ -136,14 +136,8 @@ describe("@server/utils/: parsePayload", () => {
   });
 
   describe("edge cases", () => {
-    it("array input: spread to {} before validation so it passes silently and returns empty payload", () => {
-      // The parser does `{ ...rawPayload }` before calling schema.payload().
-      // Spreading an array (e.g. []) into an object yields {}, which satisfies
-      // the schema (all fields are optional). No warning is emitted; the validated
-      // empty object is returned — not the original array.
-      const result = parsePayload([]);
-
-      expect(result).toEqual({});
+    it("array input: rejected at the boundary instead of silently coerced to {}", () => {
+      expect(() => parsePayload([])).toThrow("Payload must be a non-null object");
     });
 
     it("unknown/extra top-level fields are passed through without error", () => {
