@@ -256,7 +256,7 @@ describe("@server: GSI", () => {
         expect(updateSpy).toHaveBeenCalledOnce();
       });
 
-      it("emits no granular or allplayers events even when players join", () => {
+      it("skips granular events but still emits allplayers:joined when players join", () => {
         const manager = new GSI({
           changeDetection: "minimal",
         });
@@ -271,7 +271,7 @@ describe("@server: GSI", () => {
         manager.update(withExtraPlayer());
 
         expect(granularSpy).not.toHaveBeenCalled();
-        expect(joinedSpy).not.toHaveBeenCalled();
+        expect(joinedSpy).toHaveBeenCalledOnce();
       });
     });
   });

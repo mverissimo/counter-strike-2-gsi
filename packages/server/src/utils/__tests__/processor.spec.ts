@@ -202,7 +202,7 @@ describe("@server/utils: processor", () => {
       expect(emittedEvents.some((e) => e.startsWith("player:"))).toBe(false);
     });
 
-    it("truncates deep paths (> 3 segments) to 3 segments for the granular event name", () => {
+    it("emits granular events using the full change path", () => {
       const changes: Difference[] = [
         {
           type: "CHANGE",
@@ -212,17 +212,15 @@ describe("@server/utils: processor", () => {
         },
       ];
 
-      const truncatedListener = vi.fn();
+      const intermediateListener = vi.fn();
       const deepListener = vi.fn();
 
-      //TODO:
-      // update the type to handle these cases
-      emitter.on("player:weapons:weapon_0" as keyof EventMap, truncatedListener);
+      emitter.on("player:weapons:weapon_0" as keyof EventMap, intermediateListener);
       emitter.on("player:weapons:weapon_0:ammo_clip" as keyof EventMap, deepListener);
       processor.granular(previous, current, changes, emitter);
 
-      expect(truncatedListener).toHaveBeenCalledOnce();
-      expect(deepListener).not.toHaveBeenCalled();
+      expect(intermediateListener).not.toHaveBeenCalled();
+      expect(deepListener).toHaveBeenCalledOnce();
     });
 
     it("emits a granular event for a path with exactly 2 segments", () => {

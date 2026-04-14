@@ -51,8 +51,9 @@ export class Processor {
   }
 
   /**
-   * Granular mode: Emits block events once (deduplicated) + sub-path granular events.
-   * Truncates deep paths at 3 levels for performance.
+   * Granular mode: Emits block events once (deduplicated) + one granular
+   * event per changed path. The event name matches exactly what the type
+   * system generates from `LeafPaths<SchemaPayload>`.
    */
   public granular(
     previous: SchemaPayload,
@@ -80,17 +81,13 @@ export class Processor {
       }
 
       if (change.path.length >= 2) {
-        const p = change.path;
-
-        const eventName = (
-          p.length >= 3 ? `${p[0]}:${p[1]}:${p[2]}` : `${p[0]}:${p[1]}`
-        ) as GranularEventName;
+        const eventName = change.path.join(":") as GranularEventName;
 
         emitter.emit(eventName, this.toDelta(change));
       }
     }
 
-    this.allplayers(previous, current, emitter);
+    this.joinLeft(previous, current, emitter);
   }
 
   /**
@@ -109,14 +106,14 @@ export class Processor {
       }
     }
 
-    this.allplayers(previous, current, emitter);
+    this.joinLeft(previous, current, emitter);
   }
 
   /**
-   * Custom high-level events for allplayers.
-   * Emits "allplayers:joined" and "allplayers:left" based on SteamID key changes.
+   * High-level "allplayers:joined" / "allplayers:left" events based on
+   * SteamID set differences. Runs regardless of change-detection mode.
    */
-  private allplayers(previous: SchemaPayload, current: SchemaPayload, emitter: Emitter<EventMap>) {
+  public joinLeft(previous: SchemaPayload, current: SchemaPayload, emitter: Emitter<EventMap>) {
     const prevPlayers = previous.allplayers ?? {};
     const currPlayers = current.allplayers ?? {};
 

@@ -93,22 +93,51 @@ export function mergeDelta(
 
   let result = gsiMerger(current, delta) as SchemaPayload;
 
-  // Post-merge cleanup: remove keys that were omitted in the delta for collection objects
+  // Post-merge cleanup: remove keys that were omitted in the delta for
+  // collection objects (sparse by construction in GSI — a missing key means
+  // "no longer present", not "unchanged").
   for (const key of COLLECTION_KEYS) {
     if (key in delta) {
-      const deltaCollection = delta[key] as Record<string, unknown> | undefined;
-      const currentCollection = result[key] as Record<string, unknown> | undefined;
+      pruneMissingKeys(
+        result[key] as Record<string, unknown> | undefined,
+        delta[key] as Record<string, unknown> | undefined,
+      );
+    }
+  }
 
-      if (currentCollection && deltaCollection) {
-        // Delete any keys that exist in current but NOT in the incoming delta
-        for (const k in currentCollection) {
-          if (!(k in deltaCollection)) {
-            delete (result[key] as any)[k];
-          }
-        }
+  // Weapons are also sparse. The active player's weapons live at
+  // `player.weapons`; every player's weapons also live under
+  // `allplayers[steamid].weapons`. A dropped weapon vanishes from the
+  // payload, so we have to mirror that in state.
+  if (delta.player?.weapons && result.player?.weapons) {
+    pruneMissingKeys(result.player.weapons, delta.player.weapons);
+  }
+
+  if (delta.allplayers && result.allplayers) {
+    for (const steamid of Object.keys(result.allplayers)) {
+      const deltaWeapons = delta.allplayers[steamid]?.weapons;
+      const resultWeapons = result.allplayers[steamid]?.weapons;
+
+      if (deltaWeapons && resultWeapons) {
+        pruneMissingKeys(resultWeapons, deltaWeapons);
       }
     }
   }
 
   return result;
+}
+
+function pruneMissingKeys(
+  target: Record<string, unknown> | undefined,
+  source: Record<string, unknown> | undefined,
+) {
+  if (!target || !source) {
+    return;
+  }
+
+  for (const k in target) {
+    if (!(k in source)) {
+      delete target[k];
+    }
+  }
 }

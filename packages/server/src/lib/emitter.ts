@@ -54,8 +54,18 @@ export function createEmitter<Events extends EventMap>() {
     emit<K extends keyof Events>(type: K, payload: Events[K]) {
       const set = handlers.get(type);
 
-      if (set) {
-        [...set].forEach((h) => h(payload));
+      if (!set) {
+        return;
+      }
+
+      const snapshot = [...set];
+
+      for (const handler of snapshot) {
+        try {
+          handler(payload);
+        } catch (err) {
+          console.error(`[emitter] listener for "${String(type)}" threw:`, err);
+        }
       }
     },
   };

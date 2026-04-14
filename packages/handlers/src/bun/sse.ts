@@ -59,7 +59,6 @@ export function createSSEHandler(options: SSEOptions) {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": "*", // or your frontend origin
       },
     });
   };

@@ -46,9 +46,22 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
     } else {
       console.warn("[GSIManager] GSI payload validation warning:", result.summary);
 
-      return rawPayload as SchemaPayload;
+      return stripAuth(rawPayload as SchemaPayload);
     }
   }
 
-  return result;
+  return stripAuth(result);
+}
+
+// Auth is validated by the transport handler; the merged state is broadcast
+// to every connected SSE/WS client, so we must never let the shared secret
+// enter the manager's state.
+function stripAuth(payload: SchemaPayload): SchemaPayload {
+  if (!payload || !("auth" in payload)) {
+    return payload;
+  }
+
+  const { auth: _auth, ...rest } = payload;
+
+  return rest;
 }

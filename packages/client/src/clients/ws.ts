@@ -27,6 +27,19 @@ export interface WSClientOptions {
    * Called on transport or parse errors.
    */
   onError?: (error: WSError) => void;
+
+  /**
+   * Auto-reconnect when the socket closes unexpectedly. Uses exponential
+   * backoff with jitter between `reconnectMinDelayMs` and `reconnectMaxDelayMs`.
+   * @default true
+   */
+  reconnect?: boolean;
+
+  /** @default 500 */
+  reconnectMinDelayMs?: number;
+
+  /** @default 10_000 */
+  reconnectMaxDelayMs?: number;
 }
 
 type Handler<E extends keyof EventMap> = (data: EventPayload<E>) => void;
@@ -37,22 +50,58 @@ interface Payload {
 }
 
 export function createWSClient(options: WSClientOptions) {
-  const { url, onStatusChange, onError } = options;
+  const {
+    url,
+    onStatusChange,
+    onError,
+    reconnect = true,
+    reconnectMinDelayMs = 500,
+    reconnectMaxDelayMs = 10_000,
+  } = options;
 
   let socket: WebSocket | null = null;
+  let userClosed = false;
+  let attempt = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const handlers = new Map<keyof EventMap, Set<Handler<keyof EventMap>>>();
+
+  function scheduleReconnect() {
+    if (!reconnect || userClosed || reconnectTimer !== null) {
+      return;
+    }
+
+    const base = Math.min(reconnectMaxDelayMs, reconnectMinDelayMs * 2 ** attempt);
+    const delay = base / 2 + Math.random() * (base / 2);
+
+    attempt += 1;
+
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+
+      if (!userClosed) {
+        connect();
+      }
+    }, delay);
+  }
 
   function connect() {
     if (socket) {
       return;
     }
 
+    userClosed = false;
+
     onStatusChange?.("connecting");
 
     socket = new WebSocket(url);
 
-    socket.onopen = () => onStatusChange?.("connected");
+    socket.onopen = () => {
+      attempt = 0;
+
+      onStatusChange?.("connected");
+    };
+
     socket.onerror = (e) => {
       onError?.({
         type: "transport",
@@ -64,6 +113,7 @@ export function createWSClient(options: WSClientOptions) {
       socket = null;
 
       onStatusChange?.("disconnected");
+      scheduleReconnect();
     };
 
     socket.onmessage = (e) => {
@@ -88,6 +138,14 @@ export function createWSClient(options: WSClientOptions) {
   }
 
   function disconnect() {
+    userClosed = true;
+
+    if (reconnectTimer !== null) {
+      clearTimeout(reconnectTimer);
+
+      reconnectTimer = null;
+    }
+
     if (!socket) {
       return;
     }
@@ -98,7 +156,6 @@ export function createWSClient(options: WSClientOptions) {
 
     s.onclose = null;
     s.close();
-
     onStatusChange?.("disconnected");
   }
 
@@ -114,9 +171,9 @@ export function createWSClient(options: WSClientOptions) {
     set.add(handler as Handler<keyof EventMap>);
 
     return () => {
-      set!.delete(handler as Handler<keyof EventMap>);
+      set.delete(handler as Handler<keyof EventMap>);
 
-      if (set!.size === 0) {
+      if (set.size === 0) {
         handlers.delete(event);
       }
     };

@@ -1,7 +1,7 @@
 {
   "name": "@counter-strike-2-gsi/client",
   "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
+  "description": "Browser SSE/WebSocket clients and React hooks for consuming a Counter-Strike 2 GSI stream.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
     "url": "https://github.com/author/library/issues"

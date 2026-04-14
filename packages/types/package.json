@@ -1,7 +1,7 @@
 {
   "name": "@counter-strike-2-gsi/types",
   "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
+  "description": "Arktype schema and derived TypeScript types for the Counter-Strike 2 GSI payload.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
     "url": "https://github.com/author/library/issues"

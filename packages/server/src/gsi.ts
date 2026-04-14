@@ -91,6 +91,8 @@ export class GSI {
         }
       } else if (mode === "block") {
         this.processor.block(previous, newState, this.emitter);
+      } else {
+        this.processor.joinLeft(previous, newState, this.emitter);
       }
 
       this.emitter.emit("update", this.current);
@@ -120,6 +122,8 @@ export class GSI {
       if (changes.length > 0) {
         this.processor.granular(previous, this.current, changes, this.emitter);
       }
+    } else {
+      this.processor.joinLeft(previous, this.current, this.emitter);
     }
 
     this.emitter.emit("update", this.current);
