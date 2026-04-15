@@ -94,12 +94,12 @@ export interface GSIServerOptions<Req = unknown> extends GSIHandlerOptions<Req> 
   sse?: Omit<SSEOptions, "manager">;
 
   /**
-   * Custom path for SSE endpoint. Pass `null` to disable.
+   * Custom path for SSE endpoint.
    */
-  ssePath?: string | null;
+  ssePath?: string;
 
   /**
-   * Custom path for WS endpoint. Pass `null` to disable.
+   * Custom path for WS endpoint.
    */
-  wsPath?: string | null;
+  wsPath?: string;
 }

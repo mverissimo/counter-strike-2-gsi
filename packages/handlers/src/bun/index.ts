@@ -20,8 +20,6 @@ type BunFetchHandler = (
  * 2. `handler` — a single fetch dispatcher you can pass as
  *    `Bun.serve({ fetch: gsi.handler })` or compose inside an existing `fetch`.
  *
- * Pass `ssePath: null` / `wsPath: null` to disable either transport.
- *
  * @example
  * ```ts
  * const gsi = createGSIBun({ manager });
@@ -63,32 +61,23 @@ export function createGSIBun(options: GSIServerOptions) {
     manager,
     ...httpOptions,
   });
-  const sseHandler = ssePath
-    ? createSSEHandler({
-        manager,
-        ...sse,
-      })
-    : null;
-  const wsHandler = wsPath
-    ? createBunWSHandler({
-        manager,
-        ...wsOpts,
-      })
-    : null;
+  const sseHandler = createSSEHandler({
+    manager,
+    ...sse,
+  });
+  const wsHandler = createBunWSHandler({
+    manager,
+    ...wsOpts,
+  });
+
   const routes: Record<string, Record<string, BunFetchHandler>> = {
     [gsiPath]: {
       POST: gsiHandler,
     },
-  };
-
-  if (sseHandler && ssePath) {
-    routes[ssePath] = {
+    [ssePath]: {
       GET: sseHandler,
-    };
-  }
-
-  if (wsHandler && wsPath) {
-    routes[wsPath] = {
+    },
+    [wsPath]: {
       GET: (req, server) => {
         if (!server) {
           return new Response("Upgrade requires server", {
@@ -100,8 +89,8 @@ export function createGSIBun(options: GSIServerOptions) {
           ? undefined
           : new Response("Upgrade failed", { status: 400 });
       },
-    };
-  }
+    },
+  };
 
   const handler: BunFetchHandler = (req, server) => {
     const { pathname } = new URL(req.url);
@@ -110,11 +99,11 @@ export function createGSIBun(options: GSIServerOptions) {
       return gsiHandler(req);
     }
 
-    if (sseHandler && pathname === ssePath && req.method === "GET") {
+    if (pathname === ssePath && req.method === "GET") {
       return sseHandler(req);
     }
 
-    if (wsHandler && pathname === wsPath && req.method === "GET") {
+    if (pathname === wsPath && req.method === "GET") {
       if (!server) {
         return new Response("Upgrade requires server", {
           status: 500,
@@ -137,7 +126,7 @@ export function createGSIBun(options: GSIServerOptions) {
     gsiHandler,
     sseHandler,
     wsHandler,
-    websocket: wsHandler?.websocket ?? null,
+    websocket: wsHandler.websocket,
     routes,
     handler,
     paths: {

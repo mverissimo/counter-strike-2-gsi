@@ -13,8 +13,6 @@ type NodeRequestListener = (req: IncomingMessage, res: ServerResponse) => void |
  * Node has no router object like Express/Hono, so this exposes a
  * single `handler` dispatcher for HTTP plus `attach(server)` for WS.
  *
- * Pass `ssePath: null` / `wsPath: null` to disable either transport.
- *
  * @example
  * ```ts
  * import { createServer } from "node:http";
@@ -56,18 +54,14 @@ export function createGSINode(options: GSIServerOptions) {
     manager,
     ...httpOptions,
   });
-  const sseHandler = ssePath
-    ? createSSEHandler({
-        manager,
-        ...sse,
-      })
-    : null;
-  const wsHandler = wsPath
-    ? createNodeWSHandler({
-        manager,
-        ...wsOpts,
-      })
-    : null;
+  const sseHandler = createSSEHandler({
+    manager,
+    ...sse,
+  });
+  const wsHandler = createNodeWSHandler({
+    manager,
+    ...wsOpts,
+  });
 
   const handler: NodeRequestListener = (req, res) => {
     const url = req.url?.split("?")[0];
@@ -76,7 +70,7 @@ export function createGSINode(options: GSIServerOptions) {
       return gsiHandler(req, res);
     }
 
-    if (sseHandler && url === ssePath && req.method === "GET") {
+    if (url === ssePath && req.method === "GET") {
       return sseHandler(req, res);
     }
 
@@ -91,10 +85,6 @@ export function createGSINode(options: GSIServerOptions) {
   };
 
   const attach = (server: Server) => {
-    if (!wsHandler || !wsPath) {
-      return;
-    }
-
     server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       const url = req.url?.split("?")[0];
 
@@ -112,7 +102,7 @@ export function createGSINode(options: GSIServerOptions) {
     wsHandler,
     handler,
     attach,
-    handleUpgrade: wsHandler?.handleUpgrade ?? null,
+    handleUpgrade: wsHandler.handleUpgrade,
     paths: {
       gsi: gsiPath,
       sse: ssePath,

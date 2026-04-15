@@ -48,7 +48,15 @@
     "vite-plus": "catalog:",
     "vitest": "catalog:"
   },
-  "inlinedDependencies": {
-    "hono": "4.12.12"
+  "peerDependencies": {
+    "bun": "catalog:",
+    "express": "catalog:",
+    "fastify": "catalog:",
+    "hono": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "hono": {
+      "optional": true
+    }
   }
 }

@@ -20,8 +20,7 @@ type UpgradeWebSocket = (
  *
  * WS is only registered when you pass `upgradeWebSocket` — inject
  * whichever helper Hono ships for your host (Bun, Node, Deno, CF
- * Workers). Pass `ssePath: null` / `wsPath: null` to disable either
- * transport explicitly.
+ * Workers).
  *
  * @example Bun
  * ```ts
@@ -65,32 +64,26 @@ export function createGSIHono(options: GSIServerOptions, upgradeWebSocket?: Upgr
     manager,
     ...httpOptions,
   });
-  const sseHandler = ssePath
-    ? createSSEHandler({
-        manager,
-        ...sse,
-      })
+  const sseHandler = createSSEHandler({
+    manager,
+    ...sse,
+  });
+  const wsMiddleware = upgradeWebSocket
+    ? createHonoWSHandler(
+        {
+          manager,
+          ...wsOpts,
+        },
+        upgradeWebSocket,
+      )
     : null;
-  const wsMiddleware =
-    wsPath && upgradeWebSocket
-      ? createHonoWSHandler(
-          {
-            manager,
-            ...wsOpts,
-          },
-          upgradeWebSocket,
-        )
-      : null;
 
   const handler = new Hono();
 
   handler.post(gsiPath, gsiHandler);
+  handler.get(ssePath, sseHandler);
 
-  if (sseHandler && ssePath) {
-    handler.get(ssePath, sseHandler);
-  }
-
-  if (wsMiddleware && wsPath) {
+  if (wsMiddleware) {
     handler.get(wsPath, wsMiddleware);
   }
 
