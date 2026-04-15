@@ -34,17 +34,25 @@ export function createSSEHandler(options: SSEOptions) {
         resolveDone = r;
       });
 
-      const session = await core.connect(writer, lastEventId, (err) => {
+      let session: Awaited<ReturnType<typeof core.connect>> | undefined;
+      let closed = false;
+
+      stream.onAbort(() => {
+        closed = true;
+        session?.unsubscribe();
+        resolveDone();
+      });
+
+      session = await core.connect(writer, lastEventId, (err) => {
         console.error("[SSE Hono] Write error:", err);
 
         resolveDone();
       });
 
-      stream.onAbort(() => {
+      if (closed) {
         session.unsubscribe();
-
-        resolveDone();
-      });
+        return;
+      }
 
       await done;
 

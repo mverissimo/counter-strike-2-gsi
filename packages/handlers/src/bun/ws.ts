@@ -4,8 +4,9 @@ import { createWSCore } from "../core/ws";
 import type { WSWriter, WSSession } from "../core/ws";
 import type { WSOptions } from "../core/types";
 
-interface WSData {
+export interface WSData {
   session: WSSession | null;
+  closedEarly: boolean;
 }
 
 /**
@@ -52,17 +53,28 @@ export function createBunWSHandler(options: WSOptions) {
         },
       };
 
-      ws.data.session = await core.connect(writer, (err) => {
+      const session = await core.connect(writer, (err) => {
         console.error("[WS Bun] Write error:", err);
 
         try {
           ws.close();
         } catch {}
       });
+
+      if (ws.data.closedEarly) {
+        session.unsubscribe();
+        return;
+      }
+
+      ws.data.session = session;
     },
     close(ws: ServerWebSocket<WSData>) {
-      ws.data.session?.unsubscribe();
-      ws.data.session = null;
+      if (ws.data.session) {
+        ws.data.session.unsubscribe();
+        ws.data.session = null;
+      } else {
+        ws.data.closedEarly = true;
+      }
     },
     message() {
       // incoming client messages are ignored — this is a one-way feed
@@ -83,6 +95,7 @@ export function createBunWSHandler(options: WSOptions) {
     server.upgrade(req, {
       data: {
         session: null,
+        closedEarly: false,
       },
     });
 

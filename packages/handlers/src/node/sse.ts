@@ -30,7 +30,15 @@ export function createSSEHandler(options: SSEOptions) {
     };
 
     let session: Awaited<ReturnType<typeof core.connect>> | undefined;
+    let closed = false;
+
     const cleanup = () => {
+      if (closed) {
+        return;
+      }
+
+      closed = true;
+
       session?.unsubscribe();
 
       try {
@@ -47,6 +55,8 @@ export function createSSEHandler(options: SSEOptions) {
 
         cleanup();
       });
+
+      if (closed) session.unsubscribe();
     } catch (err) {
       console.error("[SSE Node] Connect error:", err);
 

@@ -1,6 +1,8 @@
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { WebSocketServer, type WebSocket } from "ws";
+import { WebSocketServer } from "ws";
+import type { WebSocket } from "ws";
+
 import { createWSCore, type WSWriter } from "../core/ws";
 import type { WSOptions } from "../core/types";
 
@@ -32,7 +34,9 @@ import type { WSOptions } from "../core/types";
  */
 export function createNodeWSHandler(options: WSOptions) {
   const core = createWSCore(options);
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({
+    noServer: true,
+  });
 
   wss.on("connection", async (ws: WebSocket) => {
     const writer: WSWriter = {
@@ -48,7 +52,15 @@ export function createNodeWSHandler(options: WSOptions) {
       },
     };
 
-    const session = await core.connect(writer, (err) => {
+    let session: Awaited<ReturnType<typeof core.connect>> | undefined;
+    let closed = false;
+
+    ws.on("close", () => {
+      closed = true;
+      session?.unsubscribe();
+    });
+
+    session = await core.connect(writer, (err) => {
       console.error("[WS Node] Write error:", err);
 
       try {
@@ -56,7 +68,9 @@ export function createNodeWSHandler(options: WSOptions) {
       } catch {}
     });
 
-    ws.on("close", () => session.unsubscribe());
+    if (closed) {
+      session.unsubscribe();
+    }
   });
 
   const handleUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {

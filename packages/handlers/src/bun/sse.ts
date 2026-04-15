@@ -28,8 +28,15 @@ export function createSSEHandler(options: SSEOptions) {
         enqueue(":ok\n\n");
 
         let session: Awaited<ReturnType<typeof core.connect>> | undefined;
+        let closed = false;
 
         const cleanup = () => {
+          if (closed) {
+            return;
+          }
+
+          closed = true;
+
           session?.unsubscribe();
 
           try {
@@ -37,7 +44,9 @@ export function createSSEHandler(options: SSEOptions) {
           } catch {}
         };
 
-        req.signal.addEventListener("abort", cleanup, { once: true });
+        req.signal.addEventListener("abort", cleanup, {
+          once: true,
+        });
 
         try {
           session = await core.connect(writer, lastEventId, (err) => {
@@ -45,6 +54,10 @@ export function createSSEHandler(options: SSEOptions) {
 
             cleanup();
           });
+
+          if (closed) {
+            session.unsubscribe();
+          }
         } catch (err) {
           console.error("[SSE Bun] Connect error:", err);
 

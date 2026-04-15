@@ -1,59 +1,108 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
+import type { WSEvents } from "hono/ws";
+
 import { createHonoHandler } from "./http";
 import { createSSEHandler } from "./sse";
+import { createHonoWSHandler } from "./ws";
 import type { GSIServerOptions } from "../core/types";
 
+type UpgradeWebSocket = (
+  createEvents: (c: Context) => WSEvents | Promise<WSEvents>,
+) => (c: Context, next: () => Promise<void>) => Promise<Response | void>;
+
 /**
- * Creates a complete GSI + optional SSE setup for Hono.
+ * Creates a complete GSI + optional SSE/WS setup for Hono.
  *
  * Exposes a `handler` sub-app with all routes pre-registered. Mount it
  * onto your main app with `app.route(prefix, gsi.handler)` — the same
  * pattern as any other Hono sub-app.
  *
- * @example
- * ```ts
- * const gsi = createGSIHono({ manager, enableSSE: true });
+ * WS is only registered when you pass `upgradeWebSocket` — inject
+ * whichever helper Hono ships for your host (Bun, Node, Deno, CF
+ * Workers). Pass `ssePath: null` / `wsPath: null` to disable either
+ * transport explicitly.
  *
- * // Option A — mount at root
+ * @example Bun
+ * ```ts
+ * import { createBunWebSocket } from "hono/bun";
+ *
+ * const { upgradeWebSocket, websocket } = createBunWebSocket();
+ * const gsi = createGSIHono({ manager }, upgradeWebSocket);
+ *
  * const app = new Hono();
  * app.route("/", gsi.handler);
  *
- * // Option B — mount under a prefix
- * app.route("/api", gsi.handler); // now /api/gsi + /api/sse
+ * Bun.serve({ fetch: app.fetch, websocket });
+ * ```
  *
- * // Option C — register handlers manually for custom routing
- * app.post("/custom", gsi.gsiHandler);
- * if (gsi.sseHandler) app.get("/stream", gsi.sseHandler);
+ * @example Node (@hono/node-ws)
+ * ```ts
+ * import { serve } from "@hono/node-server";
+ * import { createNodeWebSocket } from "@hono/node-ws";
  *
- * // Option D — custom paths via options
- * const gsi = createGSIHono({ manager, enableSSE: true, gsiPath: "/ingest", ssePath: "/events" });
+ * const app = new Hono();
+ * const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
+ * const gsi = createGSIHono({ manager }, upgradeWebSocket);
  * app.route("/", gsi.handler);
+ *
+ * const server = serve({ fetch: app.fetch });
+ * injectWebSocket(server);
  * ```
  */
-export function createGSIHono(options: GSIServerOptions) {
+export function createGSIHono(options: GSIServerOptions, upgradeWebSocket?: UpgradeWebSocket) {
   const {
     manager,
-    enableSSE = false,
     sse = {},
+    ws: wsOpts = {},
     gsiPath = "/gsi",
     ssePath = "/sse",
+    wsPath = "/ws",
     ...httpOptions
   } = options;
 
-  const gsiHandler = createHonoHandler({ manager, ...httpOptions });
-  const sseHandler = enableSSE ? createSSEHandler({ manager, ...sse }) : null;
+  const gsiHandler = createHonoHandler({
+    manager,
+    ...httpOptions,
+  });
+  const sseHandler = ssePath
+    ? createSSEHandler({
+        manager,
+        ...sse,
+      })
+    : null;
+  const wsMiddleware =
+    wsPath && upgradeWebSocket
+      ? createHonoWSHandler(
+          {
+            manager,
+            ...wsOpts,
+          },
+          upgradeWebSocket,
+        )
+      : null;
 
   const handler = new Hono();
+
   handler.post(gsiPath, gsiHandler);
-  if (sseHandler) handler.get(ssePath, sseHandler);
+
+  if (sseHandler && ssePath) {
+    handler.get(ssePath, sseHandler);
+  }
+
+  if (wsMiddleware && wsPath) {
+    handler.get(wsPath, wsMiddleware);
+  }
 
   return {
     gsiHandler,
     sseHandler,
+    wsHandler: wsMiddleware,
     handler,
     paths: {
       gsi: gsiPath,
-      sse: enableSSE ? ssePath : null,
+      sse: ssePath,
+      ws: wsPath,
     },
   };
 }

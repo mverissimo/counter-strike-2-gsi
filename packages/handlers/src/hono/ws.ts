@@ -1,7 +1,8 @@
 import type { Context } from "hono";
 import type { WSContext, WSEvents } from "hono/ws";
 
-import { createWSCore, type WSWriter, type WSSession } from "../core/ws";
+import { createWSCore } from "../core/ws";
+import type { WSWriter, WSSession } from "../core/ws";
 import type { WSOptions } from "../core/types";
 
 type UpgradeWebSocket = (
@@ -56,6 +57,7 @@ export function createHonoWSHandler(options: WSOptions, upgradeWebSocket: Upgrad
 
   return upgradeWebSocket(() => {
     let session: WSSession | null = null;
+    let closed = false;
 
     return {
       async onOpen(_evt: Event, ws: WSContext) {
@@ -72,15 +74,23 @@ export function createHonoWSHandler(options: WSOptions, upgradeWebSocket: Upgrad
           },
         };
 
-        session = await core.connect(writer, (err) => {
+        const s = await core.connect(writer, (err) => {
           console.error("[WS Hono] Write error:", err);
 
           try {
             ws.close();
           } catch {}
         });
+
+        if (closed) {
+          s.unsubscribe();
+          return;
+        }
+
+        session = s;
       },
       onClose() {
+        closed = true;
         session?.unsubscribe();
         session = null;
       },

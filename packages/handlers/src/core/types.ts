@@ -84,9 +84,9 @@ export interface WSOptions {
 
 export interface GSIServerOptions<Req = unknown> extends GSIHandlerOptions<Req> {
   /**
-   * Enable SSE endpoint
+   * WS-specific options
    */
-  enableSSE?: boolean;
+  ws?: Omit<WSOptions, "manager">;
 
   /**
    * SSE-specific options
@@ -94,7 +94,12 @@ export interface GSIServerOptions<Req = unknown> extends GSIHandlerOptions<Req> 
   sse?: Omit<SSEOptions, "manager">;
 
   /**
-   * Custom path for SSE endpoint
+   * Custom path for SSE endpoint. Pass `null` to disable.
    */
-  ssePath?: string;
+  ssePath?: string | null;
+
+  /**
+   * Custom path for WS endpoint. Pass `null` to disable.
+   */
+  wsPath?: string | null;
 }

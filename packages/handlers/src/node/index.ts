@@ -1,27 +1,31 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
+import type { Duplex } from "node:stream";
 import { createNodeHandler } from "./http";
 import { createSSEHandler } from "./sse";
+import { createNodeWSHandler } from "./ws";
 import type { GSIServerOptions } from "../core/types";
 
 type NodeRequestListener = (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
 
 /**
- * Creates a complete GSI + optional SSE setup for Node's built-in `http`.
+ * Creates a complete GSI + optional SSE/WS setup for Node's built-in `http`.
  *
  * Node has no router object like Express/Hono, so this exposes a
- * single `handler` dispatcher you can pass straight to
- * `http.createServer`.
+ * single `handler` dispatcher for HTTP plus `attach(server)` for WS.
+ *
+ * Pass `ssePath: null` / `wsPath: null` to disable either transport.
  *
  * @example
  * ```ts
  * import { createServer } from "node:http";
  *
- * const gsi = createGSINode({ manager, enableSSE: true });
+ * const gsi = createGSINode({ manager });
  *
- * // Option A — single dispatcher
- * createServer(gsi.handler).listen(3000);
+ * const server = createServer(gsi.handler);
+ * gsi.attach(server); // wires WS upgrade on wsPath
+ * server.listen(3000);
  *
- * // Option B — compose inside an existing request listener
+ * // Compose inside an existing request listener
  * createServer((req, res) => {
  *   if (req.url?.startsWith("/gsi") || req.url?.startsWith("/sse")) {
  *     return gsi.handler(req, res);
@@ -30,46 +34,89 @@ type NodeRequestListener = (req: IncomingMessage, res: ServerResponse) => void |
  *   res.writeHead(404).end("Not Found");
  * }).listen(3000);
  *
- * // Option C — wire handlers yourself (e.g. for custom routing)
- * if (req.url === "/gsi" && req.method === "POST") {
- *  gsi.gsiHandler(req, res);
- * }
- *
- * if (gsi.sseHandler && req.url === "/sse" && req.method === "GET") {
- *  gsi.sseHandler(req, res);
- * }
+ * // Or wire the WS upgrade yourself
+ * server.on("upgrade", (req, socket, head) => {
+ *   if (req.url === gsi.paths.ws) gsi.handleUpgrade?.(req, socket, head);
+ *   else socket.destroy();
+ * });
  * ```
  */
 export function createGSINode(options: GSIServerOptions) {
   const {
     manager,
-    enableSSE = false,
     sse = {},
+    ws: wsOpts = {},
     gsiPath = "/gsi",
     ssePath = "/sse",
+    wsPath = "/ws",
     ...httpOptions
   } = options;
 
-  const gsiHandler = createNodeHandler({ manager, ...httpOptions });
-  const sseHandler = enableSSE ? createSSEHandler({ manager, ...sse }) : null;
+  const gsiHandler = createNodeHandler({
+    manager,
+    ...httpOptions,
+  });
+  const sseHandler = ssePath
+    ? createSSEHandler({
+        manager,
+        ...sse,
+      })
+    : null;
+  const wsHandler = wsPath
+    ? createNodeWSHandler({
+        manager,
+        ...wsOpts,
+      })
+    : null;
 
   const handler: NodeRequestListener = (req, res) => {
     const url = req.url?.split("?")[0];
 
-    if (url === gsiPath && req.method === "POST") return gsiHandler(req, res);
-    if (sseHandler && url === ssePath && req.method === "GET") return sseHandler(req, res);
+    if (url === gsiPath && req.method === "POST") {
+      return gsiHandler(req, res);
+    }
 
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not Found" }));
+    if (sseHandler && url === ssePath && req.method === "GET") {
+      return sseHandler(req, res);
+    }
+
+    res.writeHead(404, {
+      "Content-Type": "application/json",
+    });
+    res.end(
+      JSON.stringify({
+        error: "Not Found",
+      }),
+    );
+  };
+
+  const attach = (server: Server) => {
+    if (!wsHandler || !wsPath) {
+      return;
+    }
+
+    server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      const url = req.url?.split("?")[0];
+
+      if (url === wsPath) {
+        wsHandler.handleUpgrade(req, socket, head);
+      } else {
+        socket.destroy();
+      }
+    });
   };
 
   return {
     gsiHandler,
     sseHandler,
+    wsHandler,
     handler,
+    attach,
+    handleUpgrade: wsHandler?.handleUpgrade ?? null,
     paths: {
       gsi: gsiPath,
-      sse: enableSSE ? ssePath : null,
+      sse: ssePath,
+      ws: wsPath,
     },
   };
 }
