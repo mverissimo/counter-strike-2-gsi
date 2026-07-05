@@ -30,6 +30,9 @@ catalogs:
     bun:
       specifier: ^1.3.12
       version: 1.3.12
+    csgogsi:
+      specifier: ^5.0.1
+      version: 5.0.1
     fast-deep-equal:
       specifier: ^3.1.3
       version: 3.1.3
@@ -81,6 +84,34 @@ importers:
       vite-plus:
         specifier: 'catalog:'
         version: 0.1.23(@types/node@25.6.0)(@voidzero-dev/vite-plus-core@0.2.2(@types/node@25.6.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.3))(happy-dom@20.8.9)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.3)
+
+  benchmarks:
+    dependencies:
+      '@counter-strike-2-gsi/server':
+        specifier: workspace:*
+        version: link:../packages/server
+      '@counter-strike-2-gsi/types':
+        specifier: workspace:*
+        version: link:../packages/types
+      cs2-gsi-z:
+        specifier: ^2.0.0
+        version: 2.0.0
+      csgogsi:
+        specifier: 'catalog:'
+        version: 5.0.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.1.23(@types/node@24.13.2)(happy-dom@20.8.9)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.8(@types/node@24.13.2)(jiti@2.6.1)(yaml@2.8.3))(yaml@2.8.3)
+      vitest:
+        specifier: npm:@voidzero-dev/vite-plus-test@latest
+        version: '@voidzero-dev/vite-plus-test@0.1.24(@types/node@24.13.2)(happy-dom@20.8.9)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.8(@types/node@24.13.2)(jiti@2.6.1)(yaml@2.8.3))(yaml@2.8.3)'
 
   packages/client:
     dependencies:
@@ -1178,12 +1209,23 @@ packages:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
     engines: {node: '>=8'}
 
+  chalk@5.6.2:
+    resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
+
   chokidar@5.0.0:
     resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
     engines: {node: '>= 20.19.0'}
 
   confbox@0.2.4:
     resolution: {integrity: sha512-ysOGlgTFbN2/Y6Cg3Iye8YKulHw+R2fNXHrgSmXISQdMnomY6eNDprVdW9R5xBguEqI954+S6709UyiO7B+6OQ==}
+
+  cs2-gsi-z@2.0.0:
+    resolution: {integrity: sha512-1j7pvZyfbdCAURKtPp15aJxl/6B4xDRR7JRLXGqvpnOyLwkd60YGJstHewl37kejL3Ap3AUClayu4z99kLfoWA==}
+
+  csgogsi@5.0.1:
+    resolution: {integrity: sha512-Ydbd7gppNE4RoCxQBfvwHMPMH6PN63044i0DnOUHTUf0TZ8kjV8YvFiGhqGs7icpJLbWixkWOpu89TULSUAt3A==}
+    engines: {node: '>=22.12.0'}
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
@@ -2322,11 +2364,24 @@ snapshots:
 
   cac@6.7.14: {}
 
+  chalk@5.6.2: {}
+
   chokidar@5.0.0:
     dependencies:
       readdirp: 5.0.0
 
   confbox@0.2.4: {}
+
+  cs2-gsi-z@2.0.0:
+    dependencies:
+      chalk: 5.6.2
+      typescript: 5.9.3
+      ws: 8.20.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  csgogsi@5.0.1: {}
 
   csstype@3.2.3: {}
 
