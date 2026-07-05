@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pnpm workspace monorepo for a Counter-Strike 2 Game State Integration (GSI) stack. Workspace globs are `apps/*` and `packages/*` (see [pnpm-workspace.yaml](pnpm-workspace.yaml)); there is no `tools/` directory.
 
 - [packages/types](packages/types) — arktype-backed schema for the raw GSI payload plus derived `EventMap`/`EventPayload`/`Delta` types. All auto-generated granular event names (e.g. `"player:state:health"`, `"allplayers:<steamid>:weapons:0:name"`) flow from `LeafPaths<SchemaPayload>`; change the schema here and consumers get new event keys automatically.
-- [packages/server](packages/server) — `GSI` class ([packages/server/src/gsi.ts](packages/server/src/gsi.ts)). Validates payloads via `parsePayload`, merges state with `mergeDelta`, and dispatches through `Processor` + a typed `createEmitter`. Change-detection modes: `granular` (default; microdiff → per-path events), `block` (fast-deep-equal, top-level only), `minimal` (only `"update"` + errors).
+- [packages/server](packages/server) — `GSI` class ([packages/server/src/gsi.ts](packages/server/src/gsi.ts)). Validates payloads via `parsePayload`, merges state with `mergeDelta`, and dispatches through `Processor` + a typed `createEmitter`. Change-detection modes: `granular` (default; microdiff → per-path events), `block` (fast-deep-equal, top-level only), `minimal` (no block/granular events). `"update"`, `"error"`, and `"allplayers:joined"`/`"allplayers:left"` are emitted in every mode.
 - [packages/handlers](packages/handlers) — runtime adapters for receiving GSI POSTs and fanning events out over SSE/WS. Parallel subtrees per runtime: `bun/`, `node/`, `hono/`, with shared logic in `core/`. Each runtime exposes `http.ts`, `sse.ts`, `ws.ts` behind a subpath export (`@counter-strike-2-gsi/handlers/node`, `/bun`, `/hono`); the root export ([packages/handlers/src/index.ts](packages/handlers/src/index.ts)) is runtime-free core types/helpers only, so `ws`/`hono` are never pulled in unless the matching subpath is imported.
-- [packages/client](packages/client) — browser SSE/WS clients ([packages/client/src/hooks/use-gsi/clients](packages/client/src/hooks/use-gsi/clients)) plus a React integration ([packages/client/src/hooks/use-gsi/use-gsi.tsx](packages/client/src/hooks/use-gsi/use-gsi.tsx)) exporting `GSIProvider`, `useGSIClient`, `useGSIDelta`, `useGSIEvent`, and `useGSIStatus`.
+- [packages/client](packages/client) — browser SSE/WS clients ([packages/client/src/hooks/use-gsi/clients](packages/client/src/hooks/use-gsi/clients)) plus a React integration ([packages/client/src/hooks/use-gsi/use-gsi.tsx](packages/client/src/hooks/use-gsi/use-gsi.tsx)) exporting `GSIProvider`, `useGSIClient`, `useGSIDelta`, `useGSIEvent`, `useGSISelector`, and `useGSIStatus`.
 - [apps/website](apps/website) — Vite + vanilla TS app. Currently the default Vite template (not wired to the GSI client yet); `src/ui/player` and `src/ui/players` exist but are empty placeholders.
 - [apps/backend](apps/backend) — placeholder directory (only `logs/` and `node_modules/`, no `package.json` or source). Don't treat it as a working example.
 
@@ -19,7 +19,7 @@ The server is transport-agnostic: create one `GSI` instance, feed raw payloads v
 
 This repo uses **[vite-plus](https://voidzero.dev)** (`vp` CLI) for formatting, linting, testing, packing, and dev — not plain vite/vitest/eslint. Root `vite.config.ts` enables `typeAware` + `typeCheck` lint and wires `vp check --fix` as the staged-files hook.
 
-- Node `>=22.12.0`, `pnpm@10.33.0` (use pnpm, never npm/yarn).
+- Node `>=22.12.0`, pnpm (version pinned via `packageManager` in [package.json](package.json); use pnpm, never npm/yarn).
 - Shared dep versions come from the `catalog:` block in [pnpm-workspace.yaml](pnpm-workspace.yaml); prefer `"catalog:"` over pinned versions when adding dependencies.
 - `vite` and `vitest` are aliased to `@voidzero-dev/vite-plus-core` / `@voidzero-dev/vite-plus-test` via workspace overrides.
 

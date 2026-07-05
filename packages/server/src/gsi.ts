@@ -26,11 +26,12 @@ export interface GSIOptions {
    *   Emits only broad block events (e.g. "player", "round", "allplayers") + custom join/left events.
    *   No granular events, reduced CPU/GC pressure. Recommended for most production HUDs at ~64Hz.
    *
-   * - `'minimal'`: Ultra-lightweight mode. Only emits the `"update"` event (and errors).
-   *   No block events, no granular events, no allplayers:joined/left.
+   * - `'minimal'`: Ultra-lightweight mode. Only emits `"update"`, errors, and
+   *   the allplayers:joined/left roster events. No block events, no granular events.
    *   Best for background monitoring, logging, or extremely constrained environments.
    *
-   * The `"update"` event is **always** emitted regardless of mode.
+   * The `"update"` event and `"allplayers:joined"`/`"allplayers:left"` are
+   * emitted regardless of mode.
    *
    * @default 'granular'
    */
