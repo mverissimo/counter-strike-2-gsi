@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 import type { GSIHandlerOptions } from "../core/types";
-import { classifyHandlerError } from "../core/http";
+import { classifyHandlerError, safeTokenEqual } from "../core/http";
 
 /**
  * Creates a Hono handler for CS2 GSI (recommended for new projects).
@@ -27,7 +27,7 @@ export function createHonoHandler(options: GSIHandlerOptions<Request>) {
         throw new Error("GSI: Invalid or empty payload");
       }
 
-      if (token !== undefined && payload.auth?.token !== token) {
+      if (token !== undefined && !safeTokenEqual(token, payload.auth?.token)) {
         console.warn(
           `[GSI] Invalid auth token from ${context.req.header("x-forwarded-for") || "unknown"}`,
         );

@@ -28,6 +28,11 @@ export interface SSESession {
  */
 export type SSEWriteErrorHandler = (error: unknown, context: "event" | "heartbeat") => void;
 
+interface Connection {
+  writer: SSEWriter;
+  enqueueWrite(fn: () => void | Promise<void>, context: "event" | "heartbeat"): Promise<void>;
+}
+
 export function createSSECore(options: SSEOptions) {
   const {
     manager,
@@ -86,6 +91,39 @@ export function createSSECore(options: SSEOptions) {
     if (replayBuffer.length > maxReplayEvents) {
       replayBuffer.shift();
     }
+  };
+
+  // One manager subscription per event, shared by every connection. The
+  // replay buffer is core-level state, so it must be populated exactly once
+  // per GSI event — never per connection — or reconnecting clients replay
+  // duplicates.
+  const connections = new Set<Connection>();
+  let managerUnsubs: Array<() => void> = [];
+
+  const subscribeToManager = () => {
+    for (const eventName of events) {
+      const handler = (payload: EventPayload<typeof eventName>) => {
+        const id = generateId();
+
+        addToReplayBuffer(eventName, payload, id);
+
+        const data = JSON.stringify(payload);
+
+        for (const connection of connections) {
+          void connection.enqueueWrite(
+            () => connection.writer.writeSSE(id, String(eventName), data),
+            "event",
+          );
+        }
+      };
+
+      managerUnsubs.push(manager.on(eventName, handler));
+    }
+  };
+
+  const unsubscribeFromManager = () => {
+    managerUnsubs.forEach((unsub) => unsub());
+    managerUnsubs = [];
   };
 
   /**
@@ -148,27 +186,21 @@ export function createSSECore(options: SSEOptions) {
       const id = generateId();
 
       await enqueueWrite(
-        () => writer.writeSSE(id, "update", JSON.stringify({ ...manager.state })),
+        () => writer.writeSSE(id, "update", JSON.stringify(manager.state)),
         "event",
       );
     }
 
-    const unsubscribers: (() => void)[] = [];
+    const connection: Connection = {
+      writer,
+      enqueueWrite,
+    };
 
-    for (const eventName of events) {
-      const handler = (payload: EventPayload<typeof eventName>) => {
-        const id = generateId();
-
-        addToReplayBuffer(eventName, payload, id);
-
-        void enqueueWrite(
-          () => writer.writeSSE(id, String(eventName), JSON.stringify(payload)),
-          "event",
-        );
-      };
-
-      unsubscribers.push(manager.on(eventName, handler));
+    if (connections.size === 0) {
+      subscribeToManager();
     }
+
+    connections.add(connection);
 
     const heartbeatInterval = setInterval(() => {
       void enqueueWrite(() => writer.writeComment("heartbeat"), "heartbeat");
@@ -184,7 +216,11 @@ export function createSSECore(options: SSEOptions) {
 
         clearInterval(heartbeatInterval);
 
-        unsubscribers.forEach((unsub) => unsub());
+        connections.delete(connection);
+
+        if (connections.size === 0) {
+          unsubscribeFromManager();
+        }
       },
     };
   }

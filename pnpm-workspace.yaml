@@ -3,9 +3,8 @@ packages:
   - packages/*
 
 allowBuilds:
+  bun: true
   esbuild: true
-
-catalogMode: prefer
 catalog:
   "@fastify/deepmerge": ^3.2.1
   "@testing-library/react": ^16.3.2
@@ -27,8 +26,10 @@ catalog:
   type-fest: ^5.5.0
   typescript: ^5
   vite: npm:@voidzero-dev/vite-plus-core@latest
-  vite-plus: ^0.1.16
+  vite-plus: ^0.1.23
   vitest: npm:@voidzero-dev/vite-plus-test@latest
+
+catalogMode: prefer
 
 overrides:
   vite: "catalog:"

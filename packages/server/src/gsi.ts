@@ -8,7 +8,9 @@ import { Processor } from "./utils/processor";
 
 export interface GSIOptions {
   /**
-   * In strict mode, validation errors throw instead of logging warnings.
+   * In strict mode, `update()` rethrows validation errors (after emitting
+   * the `"error"` event) so transport handlers can answer with a 4xx.
+   * When false, invalid payloads log a warning and are applied as-is.
    * @default false
    */
   strictValidation?: boolean;
@@ -30,7 +32,7 @@ export interface GSIOptions {
    *
    * The `"update"` event is **always** emitted regardless of mode.
    *
-   * @default 'full'
+   * @default 'granular'
    */
   changeDetection?: "block" | "granular" | "minimal";
 }
@@ -69,30 +71,28 @@ export class GSI {
 
       const previous = this.current;
       const mode = this.options.changeDetection;
-      const skipDiff = mode !== "granular";
 
-      const newState = mergeDelta(previous, cleanPayload, skipDiff);
+      // Skip mergeDelta's internal pre-diff: granular mode diffs
+      // previous vs merged below, so diffing here would run microdiff
+      // twice per update on the 64 Hz hot path.
+      const newState = mergeDelta(previous, cleanPayload, true);
 
       this.current = newState;
 
-      if (newState === previous) {
-        this.emitter.emit("update", this.current);
+      if (newState !== previous) {
+        if (mode === "granular") {
+          const changes = microdiff(previous, newState, {
+            cyclesFix: false,
+          });
 
-        return;
-      }
-
-      if (mode === "granular") {
-        const changes = microdiff(previous, newState, {
-          cyclesFix: false,
-        });
-
-        if (changes.length > 0) {
-          this.processor.granular(previous, newState, changes, this.emitter);
+          if (changes.length > 0) {
+            this.processor.granular(previous, newState, changes, this.emitter);
+          }
+        } else if (mode === "block") {
+          this.processor.block(previous, newState, this.emitter);
+        } else {
+          this.processor.joinLeft(previous, newState, this.emitter);
         }
-      } else if (mode === "block") {
-        this.processor.block(previous, newState, this.emitter);
-      } else {
-        this.processor.joinLeft(previous, newState, this.emitter);
       }
 
       this.emitter.emit("update", this.current);
@@ -101,6 +101,11 @@ export class GSI {
         error: err as Error,
         context: "update",
       });
+
+      if (this.options.strictValidation) {
+        throw err;
+      }
+
       console.error("[GSI] Update failed:", err);
     }
   }

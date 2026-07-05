@@ -146,5 +146,36 @@ describe("@server/utils/: parsePayload", () => {
 
       expect(result["_unknown"]).toBe("should-survive");
     });
+
+    it("strips auth, previously, and added so they never reach state", () => {
+      const gsiStyle = {
+        ...payload,
+        auth: { token: "secret" },
+        previously: { player: { state: { health: 90 } } },
+        added: { bomb: true },
+      } as unknown;
+
+      const result = parsePayload(gsiStyle);
+
+      expect(result).not.toHaveProperty("auth");
+      expect(result).not.toHaveProperty("previously");
+      expect(result).not.toHaveProperty("added");
+      expect(result).toMatchObject({ player: { name: "s1mple" } });
+    });
+
+    it("strips previously/added even on the non-strict validation fallback path", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const invalid = {
+        player: { state: { health: 999 } },
+        previously: { player: { state: { health: 90 } } },
+      } as unknown;
+
+      const result = parsePayload(invalid);
+
+      expect(result).not.toHaveProperty("previously");
+
+      warn.mockRestore();
+    });
   });
 });

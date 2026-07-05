@@ -21,10 +21,7 @@ export function createSSEHandler(options: SSEOptions) {
           });
         },
         async writeComment(text) {
-          await stream.writeSSE({
-            data: "",
-            event: text,
-          });
+          await stream.write(`: ${text}\n\n`);
         },
       };
 

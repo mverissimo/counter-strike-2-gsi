@@ -13,7 +13,10 @@ const $root = scope({
   },
   map: {
     mode: "'casual' | 'custom' | 'competitive' | 'deathmatch' | 'gungameprogressive' | 'new_user_training' | 'wingman' | 'workshop'",
-    name: "'ar_baggage' |'ar_pool_day' |'ar_shoots' |'ar_shoots_night' |'cs_agency' |'cs_italy' |'cs_office' |'cs_alpine' |'de_ancient' |'de_ancient_night' |'de_anubis' |'de_dust2' |'de_golden' |'de_inferno' |'de_mirage' |'de_nuke' |'de_overpass' |'de_palacio' |'de_rooftop' |'de_train' |'de_vertigo' |'de_stronghold'",
+    // Deliberately open: pinning the official map pool here rejects
+    // workshop/custom maps and breaks whole-payload validation on every
+    // map-pool update.
+    name: "string",
     phase: "'freezetime' | 'gameover' | 'intermission' | 'live' | 'over' | 'warmup'",
     round: "number",
     team_ct: {

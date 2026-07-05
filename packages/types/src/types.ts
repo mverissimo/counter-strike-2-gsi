@@ -3,6 +3,8 @@ import type { Simplify } from "type-fest";
 import type { SchemaPayload } from "./schema";
 import type { LeafPaths } from "./utils";
 
+export type { PathValue } from "./utils";
+
 /**
  * Represents a state change between two game state payloads.
  *

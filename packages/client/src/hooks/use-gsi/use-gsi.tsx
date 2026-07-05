@@ -8,7 +8,14 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { ReactNode } from "react";
-import type { EventMap, EventPayload, GeneratedEventMap } from "@counter-strike-2-gsi/types";
+import type {
+  Delta,
+  EventMap,
+  EventPayload,
+  GeneratedEventMap,
+  PathValue,
+  SchemaPayload,
+} from "@counter-strike-2-gsi/types";
 
 import { createSSEClient } from "./clients/sse";
 import type { SSEError, SSEStatus } from "./clients/sse";
@@ -183,11 +190,67 @@ function useStore() {
 }
 
 /**
+ * Subscribe to a single GSI event and derive a value from its `current`
+ * snapshot. The component only re-renders when `isEqual` reports a change —
+ * so you can subscribe to a high-frequency event (e.g. `"allplayers"`) and
+ * still render only when a projection of it (e.g. the sorted steamid list)
+ * actually moves.
+ *
+ * The selector is read through a ref, so it does not need to be memoized.
+ * `isEqual` defaults to `Object.is`; pass a shallow/deep comparator when
+ * selecting arrays or objects.
+ */
+export function useGSISelector<K extends keyof GeneratedEventMap, T>(
+  event: K,
+  selector: (value: GeneratedEventMap[K]["current"] | undefined) => T,
+  isEqual: (a: T, b: T) => boolean = Object.is,
+): T {
+  const store = useStore();
+
+  const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
+  const cacheRef = useRef<{ value: T; hasValue: boolean }>({
+    value: undefined as T,
+    hasValue: false,
+  });
+
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
+
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribeEvent(event, listener),
+    [store, event],
+  );
+
+  const getSnapshot = useCallback(() => {
+    const delta = store.getEvent(event) as GeneratedEventMap[K] | undefined;
+    const next = selectorRef.current(delta?.current);
+    const cache = cacheRef.current;
+
+    if (cache.hasValue && isEqualRef.current(cache.value, next)) {
+      return cache.value;
+    }
+
+    cache.value = next;
+    cache.hasValue = true;
+    return next;
+  }, [store, event]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/**
  * Subscribe to a single GSI event and receive its full delta
  * (`{ previous?, current }`). Use this when you need to react to transitions
  * (e.g. a kill-feed, round phase changes).
+ *
+ * The return type is resolved from the schema via {@link PathValue}, so
+ * template-literal keys like `` `allplayers:${string}:name` `` narrow to the
+ * correct value type instead of widening to the full event-value union.
  */
-export function useGSIDelta<K extends keyof GeneratedEventMap>(event: K) {
+export function useGSIDelta<K extends keyof GeneratedEventMap>(
+  event: K,
+): Delta<PathValue<SchemaPayload, K>> | undefined {
   const store = useStore();
 
   const subscribe = useCallback(
@@ -196,7 +259,7 @@ export function useGSIDelta<K extends keyof GeneratedEventMap>(event: K) {
   );
 
   const getSnapshot = useCallback(
-    () => store.getEvent(event) as GeneratedEventMap[K] | undefined,
+    () => store.getEvent(event) as Delta<PathValue<SchemaPayload, K>> | undefined,
     [store, event],
   );
 
@@ -207,7 +270,9 @@ export function useGSIDelta<K extends keyof GeneratedEventMap>(event: K) {
  * Subscribe to a single GSI event and receive just its `current` value.
  * The preferred hook for HUD-style displays.
  */
-export function useGSIEvent<K extends keyof GeneratedEventMap>(event: K) {
+export function useGSIEvent<K extends keyof GeneratedEventMap>(
+  event: K,
+): PathValue<SchemaPayload, K> | undefined {
   return useGSIDelta(event)?.current;
 }
 

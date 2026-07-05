@@ -1,5 +1,5 @@
 import type { GSIHandlerOptions } from "../core/types";
-import { classifyHandlerError } from "../core/http";
+import { classifyHandlerError, safeTokenEqual } from "../core/http";
 
 /**
  * Creates a handler compatible with Bun.serve for CS2 GSI.
@@ -39,7 +39,7 @@ export function createBunHandler(options: GSIHandlerOptions<Request>) {
         throw new Error("GSI: Invalid or empty payload");
       }
 
-      if (token !== undefined && payload.auth?.token !== token) {
+      if (token !== undefined && !safeTokenEqual(token, payload.auth?.token)) {
         console.warn(
           `[GSI] Invalid auth token from ${req.headers.get("x-forwarded-for") || "unknown"}`,
         );

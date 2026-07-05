@@ -40,14 +40,24 @@ type KnownKeys<T> = {
 type HasIndexSignature<T> = string extends keyof T ? true : false;
 
 /**
- * Extracts the value type of a string index signature.
+ * Extracts the value type of a string index signature, ignoring explicitly
+ * declared keys on the same object.
+ *
+ * Plain `T extends { [x: string]: infer V } ? V : never` widens `V` to a
+ * union of the index value *and* every explicitly declared property's value
+ * (e.g. the `custom?` field on `SchemaAllPlayers`), because those props must
+ * also satisfy the index signature for the extends check to pass. Stripping
+ * known keys via {@link KnownKeys} first isolates the index signature so we
+ * recover only the intended value type.
  *
  * @example
  * ```ts
  * IndexSignatureValue<{ [x: string]: PlayerData }> // PlayerData
+ * IndexSignatureValue<{ [x: string]: PlayerData; custom?: Other }> // PlayerData
  * ```
  */
-type IndexSignatureValue<T> = T extends { [x: string]: infer V } ? V : never;
+type IndexSignatureValue<T> =
+  Omit<T, keyof KnownKeys<T>> extends { [x: string]: infer V } ? V : never;
 
 /**
  * Builds a colon-separated event path.
@@ -72,8 +82,9 @@ type BuildPath<Prefix extends string, K extends string> = Prefix extends "" ? K 
  *   `${string}`, enabling pattern-matched events like `allplayers:${string}:name`.
  * - **Arrays**: Recursion stops at array types to avoid emitting prototype
  *   method keys like `concat`, `map`, etc.
- * - **Depth limit**: Recursion is capped at 4 levels to prevent
- *   excessive type instantiation.
+ * - **Depth limit**: Recursion is capped at 5 levels to prevent excessive
+ *   type instantiation. 5 is the minimum that covers the deepest real
+ *   event family, `allplayers:${string}:weapons:${string}:<field>`.
  *
  * @template T - The object type to traverse.
  * @template Prefix - Accumulated path prefix (internal).
@@ -106,7 +117,7 @@ export type LeafPaths<
   T,
   Prefix extends string = "",
   D extends unknown[] = [],
-> = D["length"] extends 4
+> = D["length"] extends 5
   ? never
   : T extends object
     ? T extends readonly any[]
@@ -126,3 +137,62 @@ export type LeafPaths<
               ? LeafPaths<NonNullable<IndexSignatureValue<T>>, BuildPath<Prefix, string>, [...D, 0]>
               : never)
     : never;
+
+/**
+ * Resolves a single path segment against an object type. Distinguishes:
+ * - Template-literal segments (`${string}`) → index-signature value.
+ * - Literal known keys → that property's type.
+ * - Otherwise, descends into the flattened `"custom"` subtree if the key
+ *   lives there, matching {@link LeafPaths} behavior.
+ *
+ * Falls back to the index-signature value, then `unknown`, when no
+ * candidate is found.
+ */
+type LookupKey<T, K extends string> = string extends K
+  ? HasIndexSignature<T> extends true
+    ? IndexSignatureValue<T>
+    : unknown
+  : K extends keyof T & string
+    ? T[K & keyof T]
+    : FlattenedKeys extends infer F
+      ? F extends keyof T & string
+        ? K extends keyof NonNullable<T[F]> & string
+          ? NonNullable<T[F]>[K & keyof NonNullable<T[F]>]
+          : HasIndexSignature<T> extends true
+            ? IndexSignatureValue<T>
+            : unknown
+        : HasIndexSignature<T> extends true
+          ? IndexSignatureValue<T>
+          : unknown
+      : unknown;
+
+/**
+ * Looks up the type at a colon-separated path against a schema root.
+ *
+ * Mirrors the traversal used by {@link LeafPaths} (index signatures,
+ * flattened `"custom"` subtrees, depth-limited recursion), so every path
+ * emitted by `LeafPaths<T>` is resolvable here.
+ *
+ * @example
+ * ```ts
+ * type A = PathValue<SchemaPayload, "player:state:health">;
+ * // number
+ *
+ * type B = PathValue<SchemaPayload, `allplayers:${string}:name`>;
+ * // string | undefined
+ *
+ * type C = PathValue<SchemaPayload, "allplayers:joined">;
+ * // string[]
+ * ```
+ */
+export type PathValue<T, P extends string, D extends unknown[] = []> = D["length"] extends 5
+  ? unknown
+  : NonNullable<T> extends infer NT
+    ? NT extends object
+      ? NT extends readonly unknown[]
+        ? unknown
+        : P extends `${infer Head}:${infer Rest}`
+          ? PathValue<LookupKey<NT, Head>, Rest, [...D, 0]>
+          : LookupKey<NT, P>
+      : unknown
+    : unknown;

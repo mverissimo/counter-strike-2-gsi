@@ -350,7 +350,7 @@ describe("@server: GSI", () => {
       expect(manager.state.player?.name).toBe("s1mple");
     });
 
-    it("emits 'error' in strict mode when the payload fails schema validation", () => {
+    it("emits 'error' and rethrows in strict mode when the payload fails schema validation", () => {
       const manager = new GSI({
         strictValidation: true,
       });
@@ -358,13 +358,16 @@ describe("@server: GSI", () => {
 
       manager.on("error", listener);
 
-      manager.update({
-        player: {
-          state: {
-            health: 999,
+      // Rethrows so transport handlers can turn the failure into a 4xx.
+      expect(() =>
+        manager.update({
+          player: {
+            state: {
+              health: 999,
+            },
           },
-        },
-      });
+        }),
+      ).toThrow("GSI validation failed");
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener.mock.calls[0][0].error.message).toContain("GSI validation failed");

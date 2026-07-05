@@ -46,22 +46,32 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
     } else {
       console.warn("[GSIManager] GSI payload validation warning:", result.summary);
 
-      return stripAuth(rawPayload as SchemaPayload);
+      return sanitizePayload(rawPayload as SchemaPayload);
     }
   }
 
-  return stripAuth(result);
+  return sanitizePayload(result);
 }
 
-// Auth is validated by the transport handler; the merged state is broadcast
+// `auth` is validated by the transport handler; the merged state is broadcast
 // to every connected SSE/WS client, so we must never let the shared secret
 // enter the manager's state.
-function stripAuth(payload: SchemaPayload): SchemaPayload {
-  if (!payload || !("auth" in payload)) {
+//
+// `previously`/`added` are CS2's own change-bookkeeping blocks. arktype's
+// default undeclared-key policy preserves them, so without stripping they
+// would merge into state and produce bogus "previously:*" granular events.
+const STRIPPED_KEYS = ["auth", "previously", "added"] as const;
+
+function sanitizePayload(payload: SchemaPayload): SchemaPayload {
+  if (!payload || !STRIPPED_KEYS.some((key) => key in payload)) {
     return payload;
   }
 
-  const { auth: _auth, ...rest } = payload;
+  const rest = { ...payload } as Record<string, unknown>;
 
-  return rest;
+  for (const key of STRIPPED_KEYS) {
+    delete rest[key];
+  }
+
+  return rest as SchemaPayload;
 }

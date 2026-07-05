@@ -1,6 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { GSIHandlerOptions } from "../core/types";
-import { classifyHandlerError } from "../core/http";
+import { classifyHandlerError, safeTokenEqual } from "../core/http";
+
+// CS2 GSI payloads top out around a few hundred KB with allplayers +
+// grenades enabled; anything past this is not a game client.
+const MAX_BODY_BYTES = 1024 * 1024;
 
 /**
  * Creates a pure Node.js HTTP handler for CS2 GSI (no external dependencies).
@@ -36,7 +40,25 @@ export function createNodeHandler(options: GSIHandlerOptions<IncomingMessage>) {
     let body = "";
 
     try {
+      let received = 0;
+
       for await (const chunk of req) {
+        received += chunk.length;
+
+        if (received > MAX_BODY_BYTES) {
+          res.writeHead(413, {
+            "Content-Type": "application/json",
+          });
+          res.end(
+            JSON.stringify({
+              error: "Payload too large",
+            }),
+          );
+          req.destroy();
+
+          return;
+        }
+
         body += chunk;
       }
 
@@ -50,7 +72,7 @@ export function createNodeHandler(options: GSIHandlerOptions<IncomingMessage>) {
         throw new Error("GSI: Invalid or empty payload");
       }
 
-      if (token !== undefined && payload.auth?.token !== token) {
+      if (token !== undefined && !safeTokenEqual(token, payload.auth?.token)) {
         console.warn(`[GSI] Invalid auth token from ${req.socket.remoteAddress || "unknown"}`);
 
         res.writeHead(401, {
