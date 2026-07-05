@@ -10,10 +10,17 @@ interface ParserPayloadOptions {
    * @default false
    */
   strictValidation?: boolean;
+
+  /**
+   * When false, skips schema validation entirely — the payload is only
+   * JSON-parsed and sanitized. `strictValidation` has no effect.
+   * @default true
+   */
+  validatePayload?: boolean;
 }
 
 export function parsePayload(input: unknown, options: ParserPayloadOptions = {}): SchemaPayload {
-  const { strictValidation = false } = options;
+  const { strictValidation = false, validatePayload = true } = options;
 
   let rawPayload: unknown;
 
@@ -33,6 +40,10 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
 
   if (typeof rawPayload !== "object" || rawPayload === null || Array.isArray(rawPayload)) {
     throw new Error("GSI parser: Payload must be a non-null object after parsing");
+  }
+
+  if (!validatePayload) {
+    return sanitizePayload(rawPayload as SchemaPayload);
   }
 
   const payloadForValidation = {

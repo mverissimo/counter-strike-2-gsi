@@ -16,6 +16,16 @@ export interface GSIOptions {
   strictValidation?: boolean;
 
   /**
+   * When false, skips arktype schema validation entirely. Payloads are still
+   * JSON-parsed and sanitized (`auth`/`previously`/`added` stripped) before
+   * merging, but their shape is trusted as-is and `strictValidation` has no
+   * effect. Only safe when the source is the game itself on a local
+   * interface — malformed data flows straight into state and events.
+   * @default true
+   */
+  validatePayload?: boolean;
+
+  /**
    * Controls change detection depth, event granularity, and performance trade-offs.
    *
    * - `'granular'` (default): Runs microdiff + emits block-level events AND granular sub-path events
@@ -47,6 +57,7 @@ export class GSI {
   constructor(options: GSIOptions = {}) {
     this.options = {
       strictValidation: false,
+      validatePayload: true,
       changeDetection: "granular",
       ...options,
     };
@@ -68,6 +79,7 @@ export class GSI {
     try {
       const cleanPayload = parsePayload(raw, {
         strictValidation: this.options.strictValidation,
+        validatePayload: this.options.validatePayload,
       });
 
       const previous = this.current;

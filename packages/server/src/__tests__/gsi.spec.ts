@@ -374,6 +374,61 @@ describe("@server: GSI", () => {
     });
   });
 
+  describe("validatePayload: false", () => {
+    beforeEach(() => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("applies schema-invalid payloads as-is without warning or error", () => {
+      const manager = new GSI({ validatePayload: false });
+      const errorSpy = vi.fn();
+
+      manager.on("error", errorSpy);
+      manager.update({ player: { state: { health: 999 } } });
+
+      expect(manager.state.player?.state?.health).toBe(999);
+      expect(console.warn).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it("never throws in strict mode since validation is skipped", () => {
+      const manager = new GSI({ strictValidation: true, validatePayload: false });
+
+      expect(() => manager.update({ player: { state: { health: 999 } } })).not.toThrow();
+    });
+
+    it("still strips auth, previously, and added from the payload", () => {
+      const manager = new GSI({ validatePayload: false });
+
+      manager.update({
+        ...clonePayload(payload),
+        auth: { token: "secret" },
+        previously: { player: { state: { health: 100 } } },
+        added: { bomb: true },
+      });
+
+      expect(manager.state).not.toHaveProperty("auth");
+      expect(manager.state).not.toHaveProperty("previously");
+      expect(manager.state).not.toHaveProperty("added");
+      expect(manager.state.player?.name).toBe("s1mple");
+    });
+
+    it("still rejects malformed JSON strings", () => {
+      const manager = new GSI({ validatePayload: false });
+      const errorSpy = vi.fn();
+
+      manager.on("error", errorSpy);
+      manager.update("{broken json}");
+
+      expect(errorSpy).toHaveBeenCalledOnce();
+    });
+  });
+
   describe("state", () => {
     it("state reflects the payload after update", () => {
       const manager = new GSI();

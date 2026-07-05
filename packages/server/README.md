@@ -46,10 +46,11 @@ unsubscribe(); // manager.on returns an unsubscribe function
 
 ### `new GSI(options?)`
 
-| Option             | Type                                 | Default      | Description                                                                                                                                                                                   |
-| ------------------ | ------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `changeDetection`  | `"granular" \| "block" \| "minimal"` | `"granular"` | Change-detection depth (see below).                                                                                                                                                           |
-| `strictValidation` | `boolean`                            | `false`      | When `true`, `update()` rethrows validation/parse errors (after emitting `"error"`) so transport handlers can answer 4xx. When `false`, invalid payloads log a warning and are applied as-is. |
+| Option             | Type                                 | Default      | Description                                                                                                                                                                                                                  |
+| ------------------ | ------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `changeDetection`  | `"granular" \| "block" \| "minimal"` | `"granular"` | Change-detection depth (see below).                                                                                                                                                                                          |
+| `strictValidation` | `boolean`                            | `false`      | When `true`, `update()` rethrows validation/parse errors (after emitting `"error"`) so transport handlers can answer 4xx. When `false`, invalid payloads log a warning and are applied as-is.                                |
+| `validatePayload`  | `boolean`                            | `true`       | When `false`, skips arktype schema validation entirely (payloads are still JSON-parsed and sanitized — `auth`/`previously`/`added` stripped). Fastest path for trusted local game traffic; `strictValidation` has no effect. |
 
 ### Methods
 
@@ -80,7 +81,7 @@ Regardless of mode, every update also emits:
 - **State is merged, not replaced.** CS2 sends partial payloads; `update()` deep-merges them into the existing state, so `manager.state` is always the full picture.
 - **Stripped keys.** `auth` (the shared secret — never allowed into state that gets broadcast to clients), `previously`, and `added` (CS2's own change-bookkeeping blocks) are removed before merging. You will never receive `previously:*` events.
 - **Listener errors are contained.** A throwing listener is logged and does not break other listeners or the update loop.
-- **Validation failures are non-fatal by default** — the payload is applied as-is with a console warning. Turn on `strictValidation` if you'd rather reject.
+- **Validation failures are non-fatal by default** — the payload is applied as-is with a console warning. Turn on `strictValidation` if you'd rather reject, or turn off `validatePayload` to skip schema validation entirely when the source is trusted.
 
 ## Development
 
