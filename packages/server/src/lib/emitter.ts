@@ -6,6 +6,8 @@ export interface Emitter<Events extends EventMap = EventMap> {
   off<K extends keyof Events>(type: K, handler?: Listener<Events[K]>): void;
   once<K extends keyof Events>(type: K, handler: Listener<Events[K]>): () => void;
   emit<K extends keyof Events>(type: K, payload: Events[K]): void;
+  /** Event names that currently have at least one listener. */
+  eventNames(): Array<keyof Events>;
 }
 
 export function createEmitter<Events extends EventMap>() {
@@ -50,6 +52,17 @@ export function createEmitter<Events extends EventMap>() {
       };
 
       return this.on(type, unsub);
+    },
+    eventNames() {
+      const names: Array<keyof Events> = [];
+
+      for (const [type, set] of handlers) {
+        if (set.length > 0) {
+          names.push(type);
+        }
+      }
+
+      return names;
     },
     emit<K extends keyof Events>(type: K, payload: Events[K]) {
       const set = handlers.get(type);

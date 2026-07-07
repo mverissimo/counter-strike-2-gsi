@@ -174,6 +174,77 @@ describe("@server: GSI", () => {
         });
       });
 
+      it("delivers granular events to listeners registered between updates", () => {
+        const manager = new GSI();
+
+        manager.update(payload);
+        manager.update(withPlayerHealth(67));
+
+        // Subscribing after previous updates must take effect on the next one.
+        const listener = vi.fn();
+
+        manager.on("player:state:health", listener);
+        manager.update(withPlayerHealth(30));
+
+        expect(listener).toHaveBeenCalledWith({ previous: 67, current: 30 });
+      });
+
+      it("emits granular events for every subscribed block that changed in one update", () => {
+        const manager = new GSI();
+
+        manager.update(payload);
+
+        const healthSpy = vi.fn();
+        const phaseSpy = vi.fn();
+
+        manager.on("player:state:health", healthSpy);
+        manager.on("round:phase", phaseSpy);
+
+        const p = withPlayerHealth(50);
+
+        p.round = { phase: "over" };
+
+        manager.update(p);
+
+        expect(healthSpy).toHaveBeenCalledWith({ previous: 100, current: 50 });
+        expect(phaseSpy).toHaveBeenCalledWith({ previous: "live", current: "over" });
+      });
+
+      it("emits block deltas to a block-only listener when no granular listeners exist", () => {
+        const manager = new GSI();
+
+        manager.update(payload);
+
+        const listener = vi.fn();
+
+        manager.on("map", listener);
+
+        const p = clonePayload(payload);
+
+        p.map = { ...p.map!, round: 9 };
+
+        manager.update(p);
+
+        expect(listener).toHaveBeenCalledOnce();
+        expect(listener).toHaveBeenCalledWith({
+          previous: expect.objectContaining({ round: 8 }),
+          current: expect.objectContaining({ round: 9 }),
+        });
+      });
+
+      it("does not emit a block event when the block content is unchanged", () => {
+        const manager = new GSI();
+
+        manager.update(payload);
+
+        const mapSpy = vi.fn();
+
+        manager.on("map", mapSpy);
+        manager.update(withPlayerHealth(67));
+
+        expect(mapSpy).not.toHaveBeenCalled();
+      });
+
       it("does not emit allplayers:joined/left when only player properties change", () => {
         const manager = new GSI();
 

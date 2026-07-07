@@ -62,13 +62,13 @@ unsubscribe(); // manager.on returns an unsubscribe function
 
 ## Change-detection modes
 
-The mode is load-bearing: CS2 POSTs at up to ~64 Hz during play, and granular diffing runs [microdiff](https://github.com/AsyncBanana/microdiff) on every update.
+The mode is load-bearing: CS2 POSTs at up to ~64 Hz during play. Granular diffing runs [microdiff](https://github.com/AsyncBanana/microdiff), but it is **subscription-aware**: only top-level blocks with a listener registered under them get deep-diffed (blocks with just a block-level listener get a cheap deep-equal check; unsubscribed blocks are skipped). Cost scales with what you listen to, not with total state size — a typical HUD subscribing to a handful of paths pays less in granular mode than in block mode.
 
-| Mode                 | Emits                                                                                                                                 | Cost                 | Use for                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------- |
-| `granular` (default) | block events (`"player"`, `"round"`, …) **and** per-path events (`"player:state:health"`, `"allplayers:<steamid>:weapons:0:name"`, …) | microdiff per update | interactive HUDs, overlays, detailed analytics |
-| `block`              | block events only (via fast-deep-equal)                                                                                               | light                | most production HUDs at ~64 Hz                 |
-| `minimal`            | no block or granular events                                                                                                           | negligible           | background monitoring, logging                 |
+| Mode                 | Emits                                                                                                                                 | Cost                           | Use for                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------- |
+| `granular` (default) | block events (`"player"`, `"round"`, …) **and** per-path events (`"player:state:health"`, `"allplayers:<steamid>:weapons:0:name"`, …) | microdiff per subscribed block | interactive HUDs, overlays, detailed analytics |
+| `block`              | block events only (via fast-deep-equal)                                                                                               | light                          | most production HUDs at ~64 Hz                 |
+| `minimal`            | no block or granular events                                                                                                           | negligible                     | background monitoring, logging                 |
 
 Regardless of mode, every update also emits:
 

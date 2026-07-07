@@ -24,6 +24,8 @@ cd benchmarks && pnpm bench
 
 `@counter-strike-2-gsi/server` runs in all three `changeDetection` modes, each also with `validatePayload: false` to isolate arktype's share of the cost (it turns out to be small — ~6–12% — merge + diff dominates); `cs2-gsi-z` runs with its default differ set; `csgogsi` runs its full digest.
 
+Granular diffing is subscription-aware (only blocks with listeners get deep-diffed), so it appears twice: the plain `granular` rows subscribe to a typical HUD's handful of events, and `granular, all blocks subscribed` forces worst-case full diffing for an apples-to-apples ceiling against the other libraries.
+
 ## Fairness notes
 
 - Frames are pre-serialized and `JSON.parse`d inside the measured loop for both libraries — every update gets a fresh object (matching a real HTTP body parse), which also neutralizes cs2-gsi-z's in-place mutation of the incoming payload.

@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 
 import { GSI, type GSIOptions } from "@counter-strike-2-gsi/server";
+import type { EventMap } from "@counter-strike-2-gsi/types";
 import { DifferManager, GsiUpdateHandler, default_differs } from "cs2-gsi-z";
 import { CSGOGSI } from "csgogsi";
 import { bench, describe } from "vitest";
@@ -25,6 +26,28 @@ function createGSI(changeDetection: GSIOptions["changeDetection"], validatePaylo
   gsi.on("round:phase", count);
   gsi.on("allplayers:joined", count);
   gsi.on("allplayers:left", count);
+
+  return gsi;
+}
+
+// Granular diffing is subscription-aware, so the plain granular instance
+// above (a typical HUD's handful of listeners) no longer deep-diffs every
+// block. This variant subscribes under every block in the corpus to force
+// worst-case full diffing, keeping the cross-library comparison honest.
+function createGSIFullSubscription() {
+  const gsi = createGSI("granular");
+  const perBlockEvents = [
+    "provider:timestamp",
+    "map:round",
+    "bomb:countdown",
+    "grenades:291:lifetime",
+    "allplayers:76561198000000001:state:health",
+    "phase_countdowns:phase_ends_in",
+  ] as Array<keyof EventMap>;
+
+  for (const event of perBlockEvents) {
+    gsi.on(event, count);
+  }
 
   return gsi;
 }
@@ -78,6 +101,7 @@ function createCsgogsi() {
 // snapshot) diffs against the end-of-round state, then the round replays.
 describe(`session replay (${serializedFrames.length} frames: damage, buys, bomb, round end, roster churn)`, () => {
   const granular = createGSI("granular");
+  const granularFullSub = createGSIFullSubscription();
   const block = createGSI("block");
   const minimal = createGSI("minimal");
   const granularNoValidate = createGSI("granular", false);
@@ -89,6 +113,12 @@ describe(`session replay (${serializedFrames.length} frames: damage, buys, bomb,
   bench("@counter-strike-2-gsi/server (granular)", () => {
     for (const frame of serializedFrames) {
       granular.update(JSON.parse(frame));
+    }
+  });
+
+  bench("@counter-strike-2-gsi/server (granular, all blocks subscribed)", () => {
+    for (const frame of serializedFrames) {
+      granularFullSub.update(JSON.parse(frame));
     }
   });
 
@@ -138,6 +168,7 @@ describe(`session replay (${serializedFrames.length} frames: damage, buys, bomb,
 // The common case at 64Hz: a POST arrives but nothing relevant changed.
 describe("no-change heartbeat", () => {
   const granular = createGSI("granular");
+  const granularFullSub = createGSIFullSubscription();
   const block = createGSI("block");
   const minimal = createGSI("minimal");
   const granularNoValidate = createGSI("granular", false);
@@ -145,6 +176,7 @@ describe("no-change heartbeat", () => {
   const csgogsi = createCsgogsi();
 
   granular.update(JSON.parse(serializedHeartbeat));
+  granularFullSub.update(JSON.parse(serializedHeartbeat));
   block.update(JSON.parse(serializedHeartbeat));
   minimal.update(JSON.parse(serializedHeartbeat));
   granularNoValidate.update(JSON.parse(serializedHeartbeat));
@@ -153,6 +185,10 @@ describe("no-change heartbeat", () => {
 
   bench("@counter-strike-2-gsi/server (granular)", () => {
     granular.update(JSON.parse(serializedHeartbeat));
+  });
+
+  bench("@counter-strike-2-gsi/server (granular, all blocks subscribed)", () => {
+    granularFullSub.update(JSON.parse(serializedHeartbeat));
   });
 
   bench("@counter-strike-2-gsi/server (block)", () => {

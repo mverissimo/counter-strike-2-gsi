@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import type { SchemaPayload, EventMap } from "@counter-strike-2-gsi/types";
-import type { Difference } from "microdiff";
+
+import microdiff from "microdiff";
 
 import { createEmitter } from "../../lib/emitter";
 import { Processor } from "../processor";
 import { payload, clonePayload } from "../../../tests/fixtures";
+
+vi.mock("microdiff", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("microdiff")>();
+
+  return { ...actual, default: vi.fn(actual.default) };
+});
 
 describe("@server/utils: processor", () => {
   let processor: Processor;
@@ -18,33 +25,99 @@ describe("@server/utils: processor", () => {
     emitter = createEmitter<EventMap>();
     previous = clonePayload(payload);
     current = clonePayload(payload);
+
+    vi.mocked(microdiff).mockClear();
   });
 
   // ─── granular() ────────────────────────────────────────────────────────────
 
   describe("granular()", () => {
-    it("does nothing when changes array is empty", () => {
+    it("emits nothing when states are deep-equal", () => {
       const spy = vi.spyOn(emitter, "emit");
 
-      processor.granular(previous, current, [], emitter);
+      emitter.on("player:state:health", vi.fn());
+
+      processor.granular(previous, current, emitter);
 
       expect(spy).not.toHaveBeenCalled();
     });
 
-    it("skips changes with empty path", () => {
-      const spy = vi.spyOn(emitter, "emit");
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: [],
-          value: "x",
-          oldValue: "y",
+    it("diffs only blocks that have granular listeners", () => {
+      current.player = {
+        ...previous.player!,
+        state: {
+          ...previous.player!.state!,
+          health: 67,
         },
-      ];
+      };
+      current.map = {
+        ...previous.map!,
+        round: 9,
+      };
 
-      processor.granular(previous, current, changes, emitter);
+      emitter.on("player:state:health", vi.fn());
+      vi.mocked(microdiff).mockClear();
 
-      expect(spy).not.toHaveBeenCalled();
+      processor.granular(previous, current, emitter);
+
+      expect(microdiff).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(microdiff).mock.calls[0]![0]).toBe(previous.player);
+    });
+
+    it("skips diff work entirely when nothing is subscribed", () => {
+      current.player = {
+        ...previous.player!,
+        state: {
+          ...previous.player!.state!,
+          health: 67,
+        },
+      };
+
+      vi.mocked(microdiff).mockClear();
+
+      processor.granular(previous, current, emitter);
+
+      expect(microdiff).not.toHaveBeenCalled();
+    });
+
+    it("uses a deep-equal check instead of a diff for block-only listeners", () => {
+      current.map = {
+        ...previous.map!,
+        round: 9,
+      };
+
+      const listener = vi.fn();
+
+      emitter.on("map", listener);
+      vi.mocked(microdiff).mockClear();
+
+      processor.granular(previous, current, emitter);
+
+      expect(microdiff).not.toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it("does not let allplayers:joined/left listeners trigger a deep diff of allplayers", () => {
+      const newId = "76561198000000099";
+
+      current.allplayers = {
+        ...previous.allplayers,
+        [newId]: {
+          ...previous.allplayers!["76561198000000001"]!,
+          steamid: newId,
+          name: "NiKo",
+        },
+      } as SchemaPayload["allplayers"];
+
+      const listener = vi.fn();
+
+      emitter.on("allplayers:joined", listener);
+      vi.mocked(microdiff).mockClear();
+
+      processor.granular(previous, current, emitter);
+
+      expect(microdiff).not.toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledOnce();
     });
 
     it("emits block-level event when a change occurs in that block", () => {
@@ -56,19 +129,10 @@ describe("@server/utils: processor", () => {
         },
       };
 
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player", "state", "health"],
-          value: 67,
-          oldValue: 100,
-        },
-      ];
-
       const listener = vi.fn();
 
       emitter.on("player", listener);
-      processor.granular(previous, current, changes, emitter);
+      processor.granular(previous, current, emitter);
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener).toHaveBeenCalledWith({
@@ -87,25 +151,11 @@ describe("@server/utils: processor", () => {
         },
       };
 
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player", "state", "health"],
-          value: 67,
-          oldValue: 100,
-        },
-        {
-          type: "CHANGE",
-          path: ["player", "state", "armor"],
-          value: 82,
-          oldValue: 100,
-        },
-      ];
-
       const listener = vi.fn();
 
       emitter.on("player", listener);
-      processor.granular(previous, current, changes, emitter);
+      emitter.on("player:state:health", vi.fn());
+      processor.granular(previous, current, emitter);
 
       expect(listener).toHaveBeenCalledOnce();
     });
@@ -119,19 +169,10 @@ describe("@server/utils: processor", () => {
         },
       };
 
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player", "state", "health"],
-          value: 67,
-          oldValue: 100,
-        },
-      ];
-
       const listener = vi.fn();
 
       emitter.on("player:state:health", listener);
-      processor.granular(previous, current, changes, emitter);
+      processor.granular(previous, current, emitter);
 
       expect(listener).toHaveBeenCalledWith({
         previous: 100,
@@ -140,18 +181,19 @@ describe("@server/utils: processor", () => {
     });
 
     it("emits correct delta for CREATE diff type", () => {
-      const changes: Difference[] = [
-        {
-          type: "CREATE",
-          path: ["bomb", "state"],
-          value: "planted",
-        },
-      ];
+      previous.bomb = {
+        position: "0, 0, 0",
+        player: "76561198253772619",
+      };
+      current.bomb = {
+        ...previous.bomb,
+        state: "planted",
+      };
 
       const listener = vi.fn();
 
       emitter.on("bomb:state", listener);
-      processor.granular(previous, current, changes, emitter);
+      processor.granular(previous, current, emitter);
 
       expect(listener).toHaveBeenCalledWith({
         previous: undefined,
@@ -161,20 +203,17 @@ describe("@server/utils: processor", () => {
 
     it("emits correct delta for REMOVE diff type", () => {
       const oldGrenade = previous.grenades!["291"];
-      const changes: Difference[] = [
-        {
-          type: "REMOVE",
-          path: ["grenades", "291"],
-          oldValue: oldGrenade,
-        },
-      ];
+
+      current.grenades = {
+        "331": current.grenades!["331"]!,
+      };
 
       const listener = vi.fn();
 
       //TODO:
       // update the type to handle these cases
       emitter.on("grenades:291" as keyof EventMap, listener);
-      processor.granular(previous, current, changes, emitter);
+      processor.granular(previous, current, emitter);
 
       expect(listener).toHaveBeenCalledWith({
         previous: oldGrenade,
@@ -182,74 +221,60 @@ describe("@server/utils: processor", () => {
       });
     });
 
-    it("does not emit a granular event when path has only 1 segment", () => {
+    it("emits only the block event when a block appears wholesale", () => {
       const spy = vi.spyOn(emitter, "emit");
 
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player"],
-          value: current.player,
-          oldValue: previous.player,
-        },
-      ];
+      current.bomb = {
+        state: "planted",
+        position: "0, 0, 0",
+        player: "76561198253772619",
+        countdown: "35.0",
+      };
 
-      processor.granular(previous, current, changes, emitter);
+      emitter.on("bomb", vi.fn());
+      emitter.on("bomb:state", vi.fn());
+      processor.granular(previous, current, emitter);
 
       const emittedEvents = spy.mock.calls.map(([event]) => String(event));
 
-      expect(emittedEvents).toContain("player");
-      expect(emittedEvents.some((e) => e.startsWith("player:"))).toBe(false);
+      expect(emittedEvents).toContain("bomb");
+      expect(emittedEvents.some((e) => e.startsWith("bomb:"))).toBe(false);
     });
 
     it("emits granular events using the full change path", () => {
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player", "weapons", "weapon_0", "ammo_clip"],
-          value: 20,
-          oldValue: 30,
-        },
-      ];
+      current.player = clonePayload(payload).player;
+      current.player!.weapons!["weapon_0"]!.ammo_clip = 20;
 
       const intermediateListener = vi.fn();
       const deepListener = vi.fn();
 
       emitter.on("player:weapons:weapon_0" as keyof EventMap, intermediateListener);
       emitter.on("player:weapons:weapon_0:ammo_clip" as keyof EventMap, deepListener);
-      processor.granular(previous, current, changes, emitter);
+      processor.granular(previous, current, emitter);
 
       expect(intermediateListener).not.toHaveBeenCalled();
       expect(deepListener).toHaveBeenCalledOnce();
+      expect(deepListener).toHaveBeenCalledWith({
+        previous: 30,
+        current: 20,
+      });
     });
 
     it("emits a granular event for a path with exactly 2 segments", () => {
       current.player = {
         ...previous.player!,
-        state: {
-          ...previous.player!.state!,
-          health: 67,
-          armor: 82,
-        },
+        spectarget: "76561198000000002",
       };
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player", "state"],
-          value: current.player.state,
-          oldValue: previous.player!.state,
-        },
-      ];
 
       const listener = vi.fn();
 
-      emitter.on("player:state", listener);
-      processor.granular(previous, current, changes, emitter);
+      emitter.on("player:spectarget", listener);
+      processor.granular(previous, current, emitter);
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener).toHaveBeenCalledWith({
-        previous: previous.player!.state,
-        current: current.player.state,
+        previous: undefined,
+        current: "76561198000000002",
       });
     });
 
@@ -260,19 +285,10 @@ describe("@server/utils: processor", () => {
 
       delete curr.allplayers;
 
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player", "state", "health"],
-          value: 67,
-          oldValue: 100,
-        },
-      ];
-
       const listener = vi.fn();
 
       emitter.on("allplayers:left", listener);
-      processor.granular(previous, curr as SchemaPayload, changes, emitter);
+      processor.granular(previous, curr as SchemaPayload, emitter);
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener).toHaveBeenCalledWith({
@@ -293,19 +309,10 @@ describe("@server/utils: processor", () => {
         },
       } as SchemaPayload["allplayers"];
 
-      const changes: Difference[] = [
-        {
-          type: "CHANGE",
-          path: ["player", "state", "health"],
-          value: 67,
-          oldValue: 100,
-        },
-      ];
-
       const listener = vi.fn();
 
       emitter.on("allplayers:joined", listener);
-      processor.granular(previous, current, changes, emitter);
+      processor.granular(previous, current, emitter);
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener).toHaveBeenCalledWith({ previous: undefined, current: [newId] });

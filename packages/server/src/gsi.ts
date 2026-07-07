@@ -1,4 +1,3 @@
-import microdiff from "microdiff";
 import type { SchemaPayload, EventMap, EventPayload } from "@counter-strike-2-gsi/types";
 
 import { createEmitter } from "./lib/emitter";
@@ -28,9 +27,12 @@ export interface GSIOptions {
   /**
    * Controls change detection depth, event granularity, and performance trade-offs.
    *
-   * - `'granular'` (default): Runs microdiff + emits block-level events AND granular sub-path events
+   * - `'granular'` (default): Emits block-level events AND granular sub-path events
    *   (e.g. "player:state:health", "allplayers:7656119...:weapons:0:name").
    *   Provides rich `Delta` metadata. Ideal for interactive HUDs, overlays, and detailed analytics.
+   *   Diffing is subscription-aware: only top-level blocks with a listener
+   *   registered under them are deep-diffed, so the cost scales with what
+   *   you actually subscribe to rather than with total state size.
    *
    * - `'block'`: Lightweight top-level block detection only (uses fast-deep-equal).
    *   Emits only broad block events (e.g. "player", "round", "allplayers") + custom join/left events.
@@ -85,22 +87,16 @@ export class GSI {
       const previous = this.current;
       const mode = this.options.changeDetection;
 
-      // Skip mergeDelta's internal pre-diff: granular mode diffs
-      // previous vs merged below, so diffing here would run microdiff
-      // twice per update on the 64 Hz hot path.
+      // Skip mergeDelta's internal pre-diff: the processor detects changes
+      // per block below, so diffing here would walk the state twice on the
+      // 64 Hz hot path.
       const newState = mergeDelta(previous, cleanPayload, true);
 
       this.current = newState;
 
       if (newState !== previous) {
         if (mode === "granular") {
-          const changes = microdiff(previous, newState, {
-            cyclesFix: false,
-          });
-
-          if (changes.length > 0) {
-            this.processor.granular(previous, newState, changes, this.emitter);
-          }
+          this.processor.granular(previous, newState, this.emitter);
         } else if (mode === "block") {
           this.processor.block(previous, newState, this.emitter);
         } else {
@@ -133,13 +129,7 @@ export class GSI {
     if (mode === "block") {
       this.processor.block(previous, this.current, this.emitter);
     } else if (mode === "granular") {
-      const changes = microdiff(previous, this.current, {
-        cyclesFix: false,
-      });
-
-      if (changes.length > 0) {
-        this.processor.granular(previous, this.current, changes, this.emitter);
-      }
+      this.processor.granular(previous, this.current, this.emitter);
     } else {
       this.processor.joinLeft(previous, this.current, this.emitter);
     }
