@@ -2,6 +2,16 @@
 
 A TypeScript stack for [Counter-Strike 2 Game State Integration](https://developer.valvesoftware.com/wiki/Counter-Strike:_Global_Offensive_Game_State_Integration) (GSI): receive the payloads CS2 POSTs to your server, validate and diff them, and fan typed events out to HUDs, overlays, and dashboards over SSE or WebSocket.
 
+## Features
+
+- **Every path is a typed event.** Event names like `"player:state:health"` and `"allplayers:<steamid>:weapons:0:name"` are auto-generated from the arktype schema — extend the schema and new events appear, fully typed, with no hand-written differs to maintain.
+- **Persistent merged state.** CS2 posts partial snapshots; the manager deep-merges them so `manager.state` is always the complete picture, with sparse collections (roster, grenades, weapons) pruned correctly when entries disappear.
+- **Pay only for what you listen to.** Granular diffing is subscription-aware — unsubscribed blocks are never deep-diffed — and three change-detection modes plus optional validation tune the cost further.
+- **Validated, safe ingress.** Payloads are checked against the schema (opt-out via `validatePayload`), the `auth` secret is stripped before state can reach clients, and incoming payloads are never mutated.
+- **Roster tracking built in.** `"allplayers:joined"` / `"allplayers:left"` fire in every mode from SteamID set differences.
+- **Transport-agnostic core, batteries-included edges.** One `GSI` manager; HTTP ingress + SSE/WS fan-out handlers for Node, Bun, and Hono; browser clients with auto-reconnect and React hooks.
+- **Benchmarked, not vibes.** A cross-library [benchmark suite](benchmarks) ships in the repo — 2–4x faster than cs2-gsi-z in every configuration, with honest context for where csgogsi wins.
+
 ## Packages
 
 | Package                                               | What it does                                                                                                                                             |
