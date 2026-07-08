@@ -17,6 +17,18 @@ Data flows in one direction:
 CS2 (POST /gsi) → handlers (HTTP) → server (validate → merge → diff → emit) → handlers (SSE/WS) → client (browser/React)
 ```
 
+## Performance
+
+Measured against the other maintained JavaScript GSI processors on a realistic observer-mode round replay (full methodology and numbers in [benchmarks](benchmarks)):
+
+| Library                                              | Updates/sec | Validates payloads | Handles partial payloads | Events                   |
+| ---------------------------------------------------- | ----------- | ------------------ | ------------------------ | ------------------------ |
+| **`@counter-strike-2-gsi/server`** (granular)        | ~36,000     | arktype (optional) | yes                      | every schema path, typed |
+| [`csgogsi`](https://github.com/osztenkurden/csgogsi) | ~70,000     | no                 | no (throws)              | ~19 curated              |
+| [`cs2-gsi-z`](https://github.com/alebcj/cs2-gsi-z)   | ~10,000     | no                 | yes                      | ~30 curated              |
+
+CS2 emits at most ~64 updates/s, so all of these are far past the real workload; the differences only matter under synthetic load. Granular diffing is subscription-aware — cost scales with the events you listen to, not with state size.
+
 ## Quick start
 
 ### 1. Tell CS2 where to send game state

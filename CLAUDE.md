@@ -48,7 +48,7 @@ Website ([apps/website](apps/website)): `pnpm dev` / `pnpm build` (`tsc && vp bu
 - Packages ship ESM-only (`"type": "module"`, `exports: "./dist/index.mjs"`, types at `./dist/index.d.mts`). Don't add CJS entry points.
 - Workspace deps use `"workspace:*"` — keep that form when adding cross-package imports.
 - When adding a new GSI event, extend the schema in `packages/types/src/schema` rather than hand-typing events; `GeneratedEventMap` picks them up automatically.
-- Change-detection mode is load-bearing: granular emits rich per-path deltas but runs microdiff on every update; `block` or `minimal` is the right choice for high-frequency (~64Hz) production HUDs.
+- Change-detection mode is load-bearing, but granular diffing is subscription-aware: only top-level blocks with a listener registered under them get microdiffed, so granular is typically cheaper than `block` for apps subscribing to a handful of paths. `minimal` remains the floor. Cross-library numbers live in [benchmarks](benchmarks).
 
 ## Working rules
 

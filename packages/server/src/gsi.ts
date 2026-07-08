@@ -36,7 +36,9 @@ export interface GSIOptions {
    *
    * - `'block'`: Lightweight top-level block detection only (uses fast-deep-equal).
    *   Emits only broad block events (e.g. "player", "round", "allplayers") + custom join/left events.
-   *   No granular events, reduced CPU/GC pressure. Recommended for most production HUDs at ~64Hz.
+   *   No granular events. Note: since granular diffing is subscription-aware,
+   *   granular mode with few listeners is usually cheaper than block mode —
+   *   pick 'block' for broad events, not for speed.
    *
    * - `'minimal'`: Ultra-lightweight mode. Only emits `"update"`, errors, and
    *   the allplayers:joined/left roster events. No block events, no granular events.
