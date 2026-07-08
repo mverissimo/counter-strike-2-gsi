@@ -10,7 +10,7 @@ A TypeScript stack for [Counter-Strike 2 Game State Integration](https://develop
 - **Validated, safe ingress.** Payloads are checked against the schema (opt-out via `validatePayload`), the `auth` secret is stripped before state can reach clients, and incoming payloads are never mutated.
 - **Roster tracking built in.** `"allplayers:joined"` / `"allplayers:left"` fire in every mode from SteamID set differences.
 - **Transport-agnostic core, batteries-included edges.** One `GSI` manager; HTTP ingress + SSE/WS fan-out handlers for Node, Bun, and Hono; browser clients with auto-reconnect and React hooks.
-- **Benchmarked, not vibes.** A cross-library [benchmark suite](benchmarks) ships in the repo — 2–4x faster than cs2-gsi-z in every configuration, with honest context for where csgogsi wins.
+- **Benchmarked, not vibes.** A cross-library [benchmark suite](benchmarks) ships in the repo, measuring every configuration against comparable libraries on realistic 64Hz workloads — with the methodology and trade-offs documented.
 
 ## Packages
 
