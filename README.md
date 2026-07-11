@@ -39,6 +39,29 @@ Measured against the other maintained JavaScript GSI processors on a realistic o
 
 CS2 emits at most ~64 updates/s, so all of these are far past the real workload; the differences only matter under synthetic load. Granular diffing is subscription-aware — cost scales with the events you listen to, not with state size.
 
+## Installation
+
+Pick the side of the stack you need — `@counter-strike-2-gsi/types` comes along automatically as a dependency of all three:
+
+```bash
+# server side: GSI manager + HTTP/SSE/WS adapters for Node, Bun, or Hono
+pnpm add @counter-strike-2-gsi/server @counter-strike-2-gsi/handlers
+
+# browser side: SSE/WS clients + React hooks
+pnpm add @counter-strike-2-gsi/client
+```
+
+(or `npm install` / `yarn add` / `bun add` — anything works.)
+
+A few things to know:
+
+- **ESM-only.** All packages ship as ES modules; there are no CommonJS entry points.
+- **`hono` is an optional peer dependency** of `handlers` — install it yourself only if you import `@counter-strike-2-gsi/handlers/hono`. The `/node` and `/bun` adapters don't need it.
+- **`react` is a peer dependency** of `client`, used by `GSIProvider` and the hooks.
+- Only the transport-agnostic core, `@counter-strike-2-gsi/server`, is needed if you're wiring your own HTTP layer — feed it raw payloads with `manager.update(raw)`.
+
+> **Not on npm yet:** the first release is still pending, so for now consume the packages from this workspace with `"@counter-strike-2-gsi/<name>": "workspace:*"`.
+
 ## Quick start
 
 ### 1. Tell CS2 where to send game state
@@ -122,8 +145,6 @@ export function App() {
 ```
 
 Pass a `ws://` URL to use the WebSocket transport instead — see the [client README](packages/client/README.md).
-
-> The packages are not published to npm yet; consume them from this workspace with `"@counter-strike-2-gsi/<name>": "workspace:*"`.
 
 ## Development
 
