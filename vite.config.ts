@@ -11,11 +11,11 @@ export default defineConfig({
     },
   },
   run: {
-    cache: {
-      scripts: true,
-    },
     tasks: {
-      build: "vp run -r build",
+      build: {
+        command: "vp run -r build",
+        output: ["packages/*/dist/**", "apps/*/dist/**"],
+      },
       lint: "vp lint",
       test: "vp test",
       check: "vp check",
