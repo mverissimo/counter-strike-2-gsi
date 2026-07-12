@@ -31,7 +31,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Build packages
-        run: pnpm run build
+        run: vp run build
 
       - name: Create Release Pull Request or Publish
         id: changesets

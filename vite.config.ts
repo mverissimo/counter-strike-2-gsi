@@ -10,4 +10,15 @@ export default defineConfig({
       typeCheck: true,
     },
   },
+  run: {
+    cache: {
+      scripts: true,
+    },
+    tasks: {
+      build: "vp run -r build",
+      lint: "vp lint",
+      test: "vp test",
+      check: "vp check",
+    },
+  },
 });

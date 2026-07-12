@@ -6,7 +6,6 @@
   "scripts": {
     "ready": "vp fmt && vp lint && vp test && vp run -r build",
     "dev": "vp run website#dev",
-    "build": "vp run -r build",
     "prepare": "vp config",
     "clean": "rm -rf dist node_modules && rm -rf packages/*/dist packages/*/node_modules",
     "changeset": "changeset",
