@@ -1,0 +1,51 @@
+{
+  "name": "@counter-strike-2-gsi/client",
+  "version": "0.0.0",
+  "description": "Browser SSE/WebSocket clients and React hooks for consuming a Counter-Strike 2 GSI stream.",
+  "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
+  "bugs": {
+    "url": "https://github.com/mverissimo/counter-strike-2-gsi/issues"
+  },
+  "license": "MIT",
+  "author": "Matheus Verissimo <mverissimu@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mverissimo/counter-strike-2-gsi.git",
+    "directory": "packages/client"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@counter-strike-2-gsi/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native-preview": "7.0.0-dev.20260309.1",
+    "bumpp": "^10.4.1",
+    "happy-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  }
+}

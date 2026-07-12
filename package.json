@@ -1,0 +1,23 @@
+{
+  "name": "counter-strike-2-gsi",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ready": "vp fmt && vp lint && vp test && vp run -r build",
+    "dev": "vp run website#dev",
+    "prepare": "vp config",
+    "clean": "rm -rf dist node_modules && rm -rf packages/*/dist packages/*/node_modules",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.11.0"
+}

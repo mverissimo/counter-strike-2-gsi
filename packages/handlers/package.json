@@ -1,0 +1,60 @@
+{
+  "name": "@counter-strike-2-gsi/handlers",
+  "version": "0.0.0",
+  "description": "HTTP, SSE, and WebSocket adapters (Bun, Node, Hono) for wiring a Counter-Strike 2 GSI manager to real servers.",
+  "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
+  "bugs": {
+    "url": "https://github.com/mverissimo/counter-strike-2-gsi/issues"
+  },
+  "license": "MIT",
+  "author": "Matheus Verissimo <mverissimu@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mverissimo/counter-strike-2-gsi.git",
+    "directory": "packages/handlers"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./bun": "./dist/bun/index.mjs",
+    "./hono": "./dist/hono/index.mjs",
+    "./node": "./dist/node/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@counter-strike-2-gsi/server": "workspace:*",
+    "@counter-strike-2-gsi/types": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/ws": "^8.5.12",
+    "@typescript/native-preview": "7.0.0-dev.20260309.1",
+    "bumpp": "^10.4.1",
+    "bun": "catalog:",
+    "hono": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "hono": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "hono": {
+      "optional": true
+    }
+  }
+}
