@@ -96,12 +96,27 @@ export function mergeDelta(
   // Post-merge cleanup: remove keys that were omitted in the delta for
   // collection objects (sparse by construction in GSI — a missing key means
   // "no longer present", not "unchanged").
+  //
+  // Every step below is copy-on-write. `pruneMissingKeys` hands back the same
+  // reference when there is nothing to drop, so a parent is only rebuilt once
+  // a child actually changed, and nothing reachable from `current` is written
+  // to. See the note on `pruneMissingKeys` for why in-place deletion is not
+  // an option here.
   for (const key of COLLECTION_KEYS) {
-    if (key in delta) {
-      pruneMissingKeys(
-        result[key] as Record<string, unknown> | undefined,
-        delta[key] as Record<string, unknown> | undefined,
-      );
+    const collection = result[key] as Record<string, unknown> | undefined;
+    const source = key in delta ? (delta[key] as Record<string, unknown> | undefined) : undefined;
+
+    if (!collection || !source) {
+      continue;
+    }
+
+    const pruned = pruneMissingKeys(collection, source);
+
+    if (pruned !== collection) {
+      result = {
+        ...result,
+        [key]: pruned,
+      } as SchemaPayload;
     }
   }
 
@@ -110,34 +125,102 @@ export function mergeDelta(
   // `allplayers[steamid].weapons`. A dropped weapon vanishes from the
   // payload, so we have to mirror that in state.
   if (delta.player?.weapons && result.player?.weapons) {
-    pruneMissingKeys(result.player.weapons, delta.player.weapons);
+    const weapons = result.player.weapons;
+    const pruned = pruneMissingKeys(weapons, delta.player.weapons);
+
+    if (pruned !== weapons) {
+      result = {
+        ...result,
+        player: {
+          ...result.player,
+          weapons: pruned,
+        },
+      };
+    }
   }
 
+  // Roster pruning above already ran, so this only walks players that
+  // survived the delta.
   if (delta.allplayers && result.allplayers) {
-    for (const steamid of Object.keys(result.allplayers)) {
-      const deltaWeapons = delta.allplayers[steamid]?.weapons;
-      const resultWeapons = result.allplayers[steamid]?.weapons;
+    const original = result.allplayers;
 
-      if (deltaWeapons && resultWeapons) {
-        pruneMissingKeys(resultWeapons, deltaWeapons);
+    let players = original;
+
+    for (const steamid of Object.keys(original)) {
+      const player = players[steamid];
+      const weapons = player?.weapons;
+      const deltaWeapons = delta.allplayers[steamid]?.weapons;
+
+      if (!weapons || !deltaWeapons) {
+        continue;
       }
+
+      const pruned = pruneMissingKeys(weapons, deltaWeapons);
+
+      if (pruned === weapons) {
+        continue;
+      }
+
+      if (players === original) {
+        players = {
+          ...original,
+        };
+      }
+
+      players[steamid] = {
+        ...player,
+        weapons: pruned,
+      };
+    }
+
+    if (players !== original) {
+      result = {
+        ...result,
+        allplayers: players,
+      };
     }
   }
 
   return result;
 }
 
-function pruneMissingKeys(
-  target: Record<string, unknown> | undefined,
-  source: Record<string, unknown> | undefined,
-) {
-  if (!target || !source) {
-    return;
-  }
+/**
+ * Returns `target` without the keys that are absent from `source`.
+ *
+ * Never mutates. `manager.state` hands out live sub-trees, so consumers can
+ * be holding a reference to any object in here; deleting keys in place would
+ * rewrite a snapshot they already read — and would break the `previous`
+ * side of every delta the processor is about to emit from it.
+ *
+ * Returns the exact same reference when nothing has to be dropped (the common
+ * case at 64 Hz), so callers can use identity to decide whether the parent
+ * needs rebuilding.
+ */
+function pruneMissingKeys<T extends Record<string, unknown>>(
+  target: T,
+  source: Record<string, unknown>,
+): T {
+  let hasMissing = false;
 
   for (const k in target) {
     if (!(k in source)) {
-      delete target[k];
+      hasMissing = true;
+
+      break;
     }
   }
+
+  if (!hasMissing) {
+    return target;
+  }
+
+  const pruned: Record<string, unknown> = {};
+
+  for (const k in target) {
+    if (k in source) {
+      pruned[k] = target[k];
+    }
+  }
+
+  return pruned as T;
 }
