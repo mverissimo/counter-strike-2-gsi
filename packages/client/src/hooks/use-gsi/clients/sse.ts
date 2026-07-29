@@ -130,6 +130,30 @@ export function createSSEClient(options: SSEClientOptions) {
     dispatchers.delete(event);
   }
 
+  /**
+   * `dispatchers` is bound to one `EventSource` instance, so it is dropped
+   * whenever the source is. Rebuilding it from `handlers` — the single source
+   * of truth for what is subscribed — is what keeps a reconnect from silently
+   * losing listeners that were registered before, or while, the connection
+   * was down.
+   */
+  function attachAll() {
+    for (const event of handlers.keys()) {
+      attach(event);
+    }
+  }
+
+  /**
+   * Drop the current source and every listener bound to it. Callers decide
+   * what happens next (reconnect or stay down); `handlers` is untouched so
+   * subscriptions survive either way.
+   */
+  function teardownSource() {
+    source = null;
+
+    dispatchers.clear();
+  }
+
   function connect() {
     if (source) return;
 
@@ -154,17 +178,14 @@ export function createSSEClient(options: SSEClientOptions) {
       if (source?.readyState === 0) {
         onStatusChange?.("connecting");
       } else if (source?.readyState === 2) {
-        source = null;
+        teardownSource();
 
-        dispatchers.clear();
         onStatusChange?.("disconnected");
         scheduleReconnect();
       }
     };
 
-    for (const event of handlers.keys()) {
-      attach(event);
-    }
+    attachAll();
   }
 
   function disconnect() {
@@ -181,9 +202,8 @@ export function createSSEClient(options: SSEClientOptions) {
     }
 
     source.close();
-    source = null;
 
-    dispatchers.clear();
+    teardownSource();
 
     onStatusChange?.("disconnected");
   }

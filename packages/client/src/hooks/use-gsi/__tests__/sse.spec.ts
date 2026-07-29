@@ -358,5 +358,73 @@ describe("@client: createSSEClient", () => {
 
       expect(handler).toHaveBeenCalledWith({ current: 77 });
     });
+
+    // `dispatchers` is bound to one EventSource and cleared with it, so it can
+    // only be rebuilt from `handlers`. Subscribing while the connection is
+    // down is where the two can drift.
+    it("attaches handlers registered while disconnected", () => {
+      const client = createSSEClient({
+        url: "http://x",
+      });
+      const early = vi.fn();
+      const late = vi.fn();
+
+      client.connect();
+      client.subscribe("player:state:health", early);
+
+      MockEventSource.latest().open();
+      MockEventSource.latest().error(MockEventSource.CLOSED);
+
+      // Registered with no live source to attach to.
+      client.subscribe("round:phase", late);
+
+      client.connect();
+
+      MockEventSource.latest().emit("player:state:health", { current: 5 });
+      MockEventSource.latest().emit("round:phase", { current: "live" });
+
+      expect(early).toHaveBeenCalledWith({ current: 5 });
+      expect(late).toHaveBeenCalledWith({ current: "live" });
+    });
+
+    it("attaches exactly one native listener per event across reconnects", () => {
+      const client = createSSEClient({
+        url: "http://x",
+      });
+
+      client.connect();
+      client.subscribe("player:state:health", vi.fn());
+      client.subscribe("player:state:health", vi.fn());
+
+      MockEventSource.latest().open();
+      MockEventSource.latest().error(MockEventSource.CLOSED);
+
+      client.connect();
+
+      expect(MockEventSource.latest().listenerCount("player:state:health")).toBe(1);
+    });
+
+    it("unsubscribing while disconnected keeps the event off the next connection", () => {
+      const client = createSSEClient({
+        url: "http://x",
+      });
+      const handler = vi.fn();
+
+      client.connect();
+
+      const unsub = client.subscribe("player:state:health", handler);
+
+      MockEventSource.latest().open();
+      MockEventSource.latest().error(MockEventSource.CLOSED);
+
+      unsub();
+
+      client.connect();
+
+      MockEventSource.latest().emit("player:state:health", { current: 5 });
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(MockEventSource.latest().listenerCount("player:state:health")).toBe(0);
+    });
   });
 });
