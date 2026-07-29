@@ -1,6 +1,6 @@
 {
   "name": "@counter-strike-2-gsi/client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Browser SSE/WebSocket clients and React hooks for consuming a Counter-Strike 2 GSI stream.",
   "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
   "bugs": {
