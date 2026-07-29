@@ -10,8 +10,6 @@ It knows nothing about HTTP, SSE, or WebSockets — feed it with [`@counter-stri
 pnpm add @counter-strike-2-gsi/server
 ```
 
-(Not published to npm yet — use `"workspace:*"` inside this monorepo.)
-
 ## Usage
 
 ```ts
@@ -49,7 +47,7 @@ unsubscribe(); // manager.on returns an unsubscribe function
 | Option             | Type                                 | Default      | Description                                                                                                                                                                                                                  |
 | ------------------ | ------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `changeDetection`  | `"granular" \| "block" \| "minimal"` | `"granular"` | Change-detection depth (see below).                                                                                                                                                                                          |
-| `strictValidation` | `boolean`                            | `false`      | When `true`, `update()` rethrows validation/parse errors (after emitting `"error"`) so transport handlers can answer 4xx. When `false`, invalid payloads log a warning and are applied as-is.                                |
+| `strictValidation` | `boolean`                            | `false`      | When `true`, `update()` rethrows validation/parse errors (after emitting `"error"`) so transport handlers can answer 4xx. When `false`, the payload is salvaged block by block (see below).                                  |
 | `validatePayload`  | `boolean`                            | `true`       | When `false`, skips arktype schema validation entirely (payloads are still JSON-parsed and sanitized — `auth`/`previously`/`added` stripped). Fastest path for trusted local game traffic; `strictValidation` has no effect. |
 
 ### Methods
@@ -58,6 +56,8 @@ unsubscribe(); // manager.on returns an unsubscribe function
 - `on(event, handler)` — subscribe; returns an unsubscribe function. Event names and payloads are fully typed from `EventMap`.
 - `off(event, handler?)` — remove one handler, or all handlers for the event when `handler` is omitted.
 - `reset()` — clear state back to `{}`, emitting the corresponding change events for the current mode.
+- `eventNames()` — event names that currently have at least one listener. This is the same set granular mode reads to decide which blocks are worth deep-diffing, so it's also the honest answer to "what is this instance paying for?".
+- `listenerCount(event)` — number of listeners registered for one event.
 - `state` (getter) — the current merged `SchemaPayload`.
 
 ## Change-detection modes
@@ -79,9 +79,10 @@ Regardless of mode, every update also emits:
 ## Behavior worth knowing
 
 - **State is merged, not replaced.** CS2 sends partial payloads; `update()` deep-merges them into the existing state, so `manager.state` is always the full picture.
+- **State snapshots are immutable.** Every update produces new objects for the sub-trees that changed and reuses the references for the ones that didn't. Nothing already handed out by `manager.state` — or by the `previous` side of a delta — is ever written to afterwards, including when sparse collections (roster, grenades, weapons) lose entries. Holding a reference across updates is safe; it just gives you that point in time.
 - **Stripped keys.** `auth` (the shared secret — never allowed into state that gets broadcast to clients), `previously`, and `added` (CS2's own change-bookkeeping blocks) are removed before merging. You will never receive `previously:*` events.
 - **Listener errors are contained.** A throwing listener is logged and does not break other listeners or the update loop.
-- **Validation failures are non-fatal by default** — the payload is applied as-is with a console warning. Turn on `strictValidation` if you'd rather reject, or turn off `validatePayload` to skip schema validation entirely when the source is trusted.
+- **Validation failures are non-fatal by default.** The failing top-level blocks are dropped and the rest of the payload is still merged, with a console warning naming what went wrong — a malformed `player` never costs you a perfectly good `map`. If the payload root itself is invalid there is nothing to salvage and the update is discarded whole. Turn on `strictValidation` if you'd rather reject outright, or turn off `validatePayload` to skip schema validation entirely when the source is trusted.
 
 ## Development
 

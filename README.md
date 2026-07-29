@@ -6,8 +6,9 @@ A TypeScript stack for [Counter-Strike 2 Game State Integration](https://develop
 
 - **Every path is a typed event.** Event names like `"player:state:health"` and `"allplayers:<steamid>:weapons:0:name"` are auto-generated from the arktype schema — extend the schema and new events appear, fully typed, with no hand-written differs to maintain.
 - **Persistent merged state.** CS2 posts partial snapshots; the manager deep-merges them so `manager.state` is always the complete picture, with sparse collections (roster, grenades, weapons) pruned correctly when entries disappear.
+- **Immutable snapshots.** Each update builds new objects only for what changed and reuses the rest. Anything you got from `manager.state` — or from the `previous` side of a delta — keeps saying what it said; nothing is rewritten under you.
 - **Pay only for what you listen to.** Granular diffing is subscription-aware — unsubscribed blocks are never deep-diffed — and three change-detection modes plus optional validation tune the cost further.
-- **Validated, safe ingress.** Payloads are checked against the schema (opt-out via `validatePayload`), the `auth` secret is stripped before state can reach clients, and incoming payloads are never mutated.
+- **Validated, safe ingress.** Payloads are checked against the schema (opt-out via `validatePayload`), and a block that fails validation is dropped rather than trusted — the rest of the payload still applies. The `auth` secret is stripped before state can reach clients, and incoming payloads are never mutated.
 - **Roster tracking built in.** `"allplayers:joined"` / `"allplayers:left"` fire in every mode from SteamID set differences.
 - **Transport-agnostic core, batteries-included edges.** One `GSI` manager; HTTP ingress + SSE/WS fan-out handlers for Node, Bun, and Hono; browser clients with auto-reconnect and React hooks.
 - **Benchmarked, not vibes.** A cross-library [benchmark suite](benchmarks) ships in the repo, measuring every configuration against comparable libraries on realistic 64Hz workloads — with the methodology and trade-offs documented.
@@ -19,7 +20,7 @@ A TypeScript stack for [Counter-Strike 2 Game State Integration](https://develop
 | [`@counter-strike-2-gsi/types`](packages/types)       | arktype schema for the raw GSI payload plus derived TypeScript types. Every event name (e.g. `"player:state:health"`) is auto-generated from the schema. |
 | [`@counter-strike-2-gsi/server`](packages/server)     | Transport-agnostic `GSI` manager: validates payloads, merges state, and emits typed events with configurable change-detection depth.                     |
 | [`@counter-strike-2-gsi/handlers`](packages/handlers) | HTTP ingress + SSE/WS egress adapters for **Node**, **Bun**, and **Hono**, wired to a `GSI` manager.                                                     |
-| [`@counter-strike-2-gsi/client`](packages/client)     | Browser SSE/WS clients with auto-reconnect, plus React hooks (`GSIProvider`, `useGSIEvent`, `useGSISelector`, …).                                        |
+| [`@counter-strike-2-gsi/client`](packages/client)     | Browser SSE/WS clients with auto-reconnect, plus React hooks (`GSIProvider`, `useGSIEvent`, `useGSIEvents`, `useGSISelector`, `useGSIState`, …).         |
 
 Data flows in one direction:
 
@@ -59,8 +60,6 @@ A few things to know:
 - **`hono` is an optional peer dependency** of `handlers` — install it yourself only if you import `@counter-strike-2-gsi/handlers/hono`. The `/node` and `/bun` adapters don't need it.
 - **`react` is a peer dependency** of `client`, used by `GSIProvider` and the hooks.
 - Only the transport-agnostic core, `@counter-strike-2-gsi/server`, is needed if you're wiring your own HTTP layer — feed it raw payloads with `manager.update(raw)`.
-
-> **Not on npm yet:** the first release is still pending, so for now consume the packages from this workspace with `"@counter-strike-2-gsi/<name>": "workspace:*"`.
 
 ## Quick start
 
