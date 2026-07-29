@@ -46,8 +46,35 @@ export function createSSECore(options: SSEOptions) {
 
   const replayBuffer: ReplayEvent[] = [];
   let eventCounter = 0;
+  let lastTimestamp = 0;
 
-  const generateId = () => `${Date.now()}-${(++eventCounter).toString(36)}`;
+  /**
+   * `Date.now()` clamped to a monotonic high-water mark.
+   *
+   * Every ordering decision in here — which buffered events a reconnecting
+   * client still needs, which ones have aged out — is a comparison of wall
+   * clock readings. A backwards step (NTP correction, VM resume, manual clock
+   * change) breaks both at once: new events get IDs that sort *before* ones
+   * the client already saw, and freshly buffered events look older than
+   * `maxReplayAgeMs` and get dropped on the spot. Reading the clock through
+   * here instead keeps the buffer internally consistent; the event counter
+   * breaks ties inside a frozen millisecond.
+   *
+   * The cost is that a backwards jump freezes the *ages* in the buffer until
+   * the real clock catches up, which at worst holds events slightly past
+   * their nominal expiry — cheap next to replaying or losing them.
+   */
+  const monotonicNow = () => {
+    const now = Date.now();
+
+    if (now > lastTimestamp) {
+      lastTimestamp = now;
+    }
+
+    return lastTimestamp;
+  };
+
+  const generateId = () => `${monotonicNow()}-${(++eventCounter).toString(36)}`;
 
   const parseEventId = (s: string): [number, number] => {
     const dash = s.lastIndexOf("-");
@@ -67,7 +94,7 @@ export function createSSECore(options: SSEOptions) {
   };
 
   const trimStaleEvents = () => {
-    const now = Date.now();
+    const now = monotonicNow();
 
     while (replayBuffer.length && now - replayBuffer[0].timestamp > maxReplayAgeMs) {
       replayBuffer.shift();
@@ -85,7 +112,7 @@ export function createSSECore(options: SSEOptions) {
       id,
       event: eventName,
       data: payload,
-      timestamp: Date.now(),
+      timestamp: monotonicNow(),
     });
 
     if (replayBuffer.length > maxReplayEvents) {
@@ -130,6 +157,11 @@ export function createSSECore(options: SSEOptions) {
    * Connect a client. The adapter provides the writer and Last-Event-ID;
    * the core handles replay, subscriptions, and heartbeat.
    *
+   * Write order is fixed: buffered events newer than `Last-Event-ID` first,
+   * then the initial state snapshot, then live events. See
+   * {@link SSEOptions.sendInitialState} for the redundancy that replay +
+   * snapshot implies and how to opt out of it.
+   *
    * Returns a session with an `unsubscribe` callback the adapter
    * must call on client disconnect.
    */
@@ -164,8 +196,10 @@ export function createSSECore(options: SSEOptions) {
       return writeChain;
     };
 
+    let replayed = 0;
+
     if (lastEventId) {
-      const now = Date.now();
+      const now = monotonicNow();
       const eventsToReplay = replayBuffer.filter(
         (e) => isAfter(e.id, lastEventId) && now - e.timestamp < maxReplayAgeMs,
       );
@@ -177,12 +211,17 @@ export function createSSECore(options: SSEOptions) {
         );
       }
 
-      if (eventsToReplay.length > 0) {
-        logger(`[SSE] Replayed ${eventsToReplay.length} events to ${clientId}`);
+      replayed = eventsToReplay.length;
+
+      if (replayed > 0) {
+        logger(`[SSE] Replayed ${replayed} events to ${clientId}`);
       }
     }
 
-    if (sendInitialState) {
+    const wantsInitialState =
+      sendInitialState === "only-if-no-replay" ? replayed === 0 : sendInitialState;
+
+    if (wantsInitialState) {
       const id = generateId();
 
       await enqueueWrite(
