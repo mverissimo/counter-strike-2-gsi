@@ -35,12 +35,33 @@ export interface WSClientOptions {
    */
   reconnect?: boolean;
 
+  /**
+   * Also reconnect when the server closes the socket *cleanly* — close code
+   * 1000 (normal) or 1001 (going away).
+   *
+   * A clean close is the server stating it is done with this connection: a
+   * shutdown, a deploy, a deliberate kick. Retrying into it produces a
+   * backoff loop against an endpoint that has no intention of serving, so by
+   * default only unexpected closes (1006 and friends) are retried. Turn this
+   * on when the server closes cleanly for reasons the client should ride out,
+   * e.g. a rolling restart behind a load balancer.
+   * @default false
+   */
+  reconnectOnCleanClose?: boolean;
+
   /** @default 500 */
   reconnectMinDelayMs?: number;
 
   /** @default 10_000 */
   reconnectMaxDelayMs?: number;
 }
+
+/**
+ * Close codes that mean "the server meant to do this". 1005 (no status) is
+ * deliberately absent: it's what a socket reports when no code was sent at
+ * all, which is indistinguishable from a connection that simply went away.
+ */
+const CLEAN_CLOSE_CODES = new Set([1000, 1001]);
 
 type Handler<E extends keyof EventMap> = (data: EventPayload<E>) => void;
 
@@ -55,6 +76,7 @@ export function createWSClient(options: WSClientOptions) {
     onStatusChange,
     onError,
     reconnect = true,
+    reconnectOnCleanClose = false,
     reconnectMinDelayMs = 500,
     reconnectMaxDelayMs = 10_000,
   } = options;
@@ -109,10 +131,15 @@ export function createWSClient(options: WSClientOptions) {
       });
     };
 
-    socket.onclose = () => {
+    socket.onclose = (e) => {
       socket = null;
 
       onStatusChange?.("disconnected");
+
+      if (!reconnectOnCleanClose && CLEAN_CLOSE_CODES.has(e.code)) {
+        return;
+      }
+
       scheduleReconnect();
     };
 

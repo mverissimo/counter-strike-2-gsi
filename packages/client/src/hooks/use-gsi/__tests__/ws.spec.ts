@@ -123,6 +123,90 @@ describe("@client: createWSClient", () => {
     });
   });
 
+  describe("reconnect on close", () => {
+    const connectAndClose = (code: number, options: Record<string, unknown> = {}) => {
+      const client = createWSClient({
+        url: "ws://x",
+        reconnectMinDelayMs: 10,
+        reconnectMaxDelayMs: 10,
+        ...options,
+      });
+
+      client.connect();
+      MockWebSocket.latest().open();
+      MockWebSocket.latest().serverClose(code);
+
+      return client;
+    };
+
+    it("reconnects after an abnormal close (1006)", async () => {
+      vi.useFakeTimers();
+
+      connectAndClose(1006);
+
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(MockWebSocket.instances).toHaveLength(2);
+
+      vi.useRealTimers();
+    });
+
+    it.each([1000, 1001])("does not reconnect after a clean close (%i)", async (code) => {
+      vi.useFakeTimers();
+
+      connectAndClose(code);
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(MockWebSocket.instances).toHaveLength(1);
+
+      vi.useRealTimers();
+    });
+
+    it.each([1000, 1001])(
+      "reconnects after a clean close (%i) when reconnectOnCleanClose is set",
+      async (code) => {
+        vi.useFakeTimers();
+
+        connectAndClose(code, { reconnectOnCleanClose: true });
+
+        await vi.advanceTimersByTimeAsync(50);
+
+        expect(MockWebSocket.instances).toHaveLength(2);
+
+        vi.useRealTimers();
+      },
+    );
+
+    it("still reports 'disconnected' on a clean close even though it stays down", () => {
+      const onStatusChange = vi.fn();
+      const client = createWSClient({
+        url: "ws://x",
+        onStatusChange,
+      });
+
+      client.connect();
+      MockWebSocket.latest().open();
+      onStatusChange.mockClear();
+
+      MockWebSocket.latest().serverClose(1000);
+
+      expect(onStatusChange).toHaveBeenCalledWith("disconnected");
+    });
+
+    it("does not reconnect at all when reconnect is disabled", async () => {
+      vi.useFakeTimers();
+
+      connectAndClose(1006, { reconnect: false });
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(MockWebSocket.instances).toHaveLength(1);
+
+      vi.useRealTimers();
+    });
+  });
+
   describe("errors", () => {
     it("forwards transport errors to onError", () => {
       const onError = vi.fn();
