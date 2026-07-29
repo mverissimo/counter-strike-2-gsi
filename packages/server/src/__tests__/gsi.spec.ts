@@ -598,4 +598,92 @@ describe("@server: GSI", () => {
       expect(listener).toHaveBeenCalledWith({});
     });
   });
+
+  describe("listener introspection", () => {
+    it("eventNames() lists only events with a live listener", () => {
+      const manager = new GSI();
+
+      expect(manager.eventNames()).toEqual([]);
+
+      manager.on("player:state:health", vi.fn());
+      manager.on("round", vi.fn());
+
+      expect(manager.eventNames().sort()).toEqual(["player:state:health", "round"]);
+    });
+
+    it("eventNames() drops an event once its last listener goes", () => {
+      const manager = new GSI();
+      const handler = vi.fn();
+
+      const unsub = manager.on("player:state:health", handler);
+
+      unsub();
+
+      expect(manager.eventNames()).not.toContain("player:state:health");
+    });
+
+    it("listenerCount() counts registrations per event", () => {
+      const manager = new GSI();
+
+      expect(manager.listenerCount("update")).toBe(0);
+
+      manager.on("update", vi.fn());
+      manager.on("update", vi.fn());
+      manager.on("player", vi.fn());
+
+      expect(manager.listenerCount("update")).toBe(2);
+      expect(manager.listenerCount("player")).toBe(1);
+      expect(manager.listenerCount("error")).toBe(0);
+    });
+
+    it("listenerCount() drops back as listeners unsubscribe", () => {
+      const manager = new GSI();
+      const first = vi.fn();
+      const second = vi.fn();
+
+      manager.on("update", first);
+      manager.on("update", second);
+      manager.off("update", first);
+
+      expect(manager.listenerCount("update")).toBe(1);
+
+      manager.off("update");
+
+      expect(manager.listenerCount("update")).toBe(0);
+    });
+  });
+
+  describe("non-strict validation", () => {
+    beforeEach(() => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("applies the blocks that validated and skips the ones that did not", () => {
+      const manager = new GSI();
+
+      manager.update({
+        round: { phase: "live" },
+        player: { state: { health: 999 } },
+      });
+
+      expect(manager.state.round).toEqual({ phase: "live" });
+      expect(manager.state.player).toBeUndefined();
+    });
+
+    it("leaves previously-valid state untouched when a later block is invalid", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      const health = manager.state.player?.state?.health;
+
+      manager.update({ player: { state: { health: 999 } } });
+
+      expect(manager.state.player?.state?.health).toBe(health);
+    });
+  });
 });
