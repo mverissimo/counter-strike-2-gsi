@@ -8,13 +8,12 @@ arktype-backed schema for the raw Counter-Strike 2 GSI payload, plus the derived
 pnpm add @counter-strike-2-gsi/types
 ```
 
-(Not published to npm yet — use `"workspace:*"` inside this monorepo.)
-
 ## What's exported
 
 ### Runtime
 
 - `schema` — the exported arktype scope. `schema.payload(raw)` validates a full GSI payload and returns either the typed payload or `ArkErrors`. Sub-validators (`schema.player`, `schema.map`, `schema.bomb`, …) are available for individual blocks.
+- `MAX_PATH_DEPTH` — the depth cap applied to generated event paths (see below). Exported so the limit is inspectable and testable rather than a magic number buried in a conditional type.
 
 ### Payload types
 
@@ -39,8 +38,8 @@ Inferred from the schema, one per block:
 `LeafPaths<SchemaPayload>` walks the schema and produces a `{ path, type }` pair for every node, joining keys with `:`. Rules worth knowing:
 
 - **Index signatures** (SteamID-keyed maps like `allplayers`, weapon slots, grenades) produce template-literal paths: `` `allplayers:${string}:state:health` ``.
-- **The `custom` key is flattened**: `allplayers.custom.joined` becomes the event `"allplayers:joined"`, not `"allplayers:custom:joined"`.
-- **Depth is capped at 5**, which exactly covers the deepest real family, `allplayers:<steamid>:weapons:<slot>:<field>`.
+- **The `custom` key is flattened**: `allplayers.custom.joined` becomes the event `"allplayers:joined"`, not `"allplayers:custom:joined"`. That is deliberate, and it's what keeps the schema-derived name lined up with the one the server actually emits: `"allplayers:joined"` / `"allplayers:left"` are **computed** by `@counter-strike-2-gsi/server` from the SteamID set difference between two states, not read out of the payload, and they're declared by hand on `EventMap`. CS2 does send `allplayers.custom` when the roster changes, so without the flatten a granular diff would emit `"allplayers:custom:joined"` too, splitting one concept across two event names. Drop the flatten only if the hand-declared events on `EventMap` are renamed to match.
+- **Depth is capped at `MAX_PATH_DEPTH`** (5), which exactly covers the deepest real family, `allplayers:<steamid>:weapons:<slot>:<field>`. Each level multiplies type instantiations, so this is the lever that keeps schema changes from blowing up compile times. Flattened keys don't spend a level. A test walks the arktype schema and asserts the real deepest path is exactly this number, so growing the schema past it fails the build instead of silently dropping event names.
 - Intermediate nodes get events too — subscribing to `"player:state"` gives you the whole state object as a `Delta`.
 
 ## Extending the schema

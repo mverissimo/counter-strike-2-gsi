@@ -39,6 +39,7 @@ interface Store {
   subscribeEvent: <K extends keyof EventMap>(event: K, listener: () => void) => () => void;
   connect: () => void;
   disconnect: () => void;
+  clear: () => void;
 }
 
 interface CreateStoreOptions {
@@ -57,6 +58,11 @@ interface CreateStoreOptions {
 function createStore(props: CreateStoreOptions): Store {
   const { url, onError } = props;
 
+  // Last known value per event. Deliberately *not* wiped on disconnect: a
+  // HUD should keep showing the last frame through a reconnect blip rather
+  // than blanking out and flashing back. Consumers that need the distinction
+  // read it from `useGSIStatus`, and anything that must start from empty
+  // (map change, demo switch) calls `clear()`.
   const snapshot: Partial<Record<keyof EventMap, unknown>> = {};
   let status: GSIStatus = "disconnected";
 
@@ -139,6 +145,20 @@ function createStore(props: CreateStoreOptions): Store {
     };
   }
 
+  function clear() {
+    const events = Object.keys(snapshot) as Array<keyof EventMap>;
+
+    for (const event of events) {
+      delete snapshot[event];
+    }
+
+    // Notify every event that had a value — subscribers to events that were
+    // never populated have nothing to re-read.
+    for (const event of events) {
+      eventListeners.get(event)?.forEach((l) => l());
+    }
+  }
+
   return {
     getStatus: () => status,
     getEvent: <K extends keyof EventMap>(event: K) =>
@@ -147,6 +167,7 @@ function createStore(props: CreateStoreOptions): Store {
     subscribeEvent,
     connect: client.connect,
     disconnect: client.disconnect,
+    clear,
   };
 }
 
@@ -277,6 +298,108 @@ export function useGSIEvent<K extends keyof GeneratedEventMap>(
 }
 
 /**
+ * Subscribe to several GSI events at once and receive their `current` values
+ * as one object keyed by event name.
+ *
+ * Saves a hook call per event when a component reads a handful of unrelated
+ * paths. The returned object is referentially stable until one of the
+ * subscribed events actually fires, so it is safe as a `useMemo`/`useEffect`
+ * dependency.
+ *
+ * `events` is compared by content, not identity — pass an inline array
+ * literal freely; only changing the *set* of events rebuilds the
+ * subscription.
+ *
+ * @example
+ * ```tsx
+ * const { "player:state:health": health, "round:phase": phase } =
+ *   useGSIEvents(["player:state:health", "round:phase"]);
+ * ```
+ */
+export function useGSIEvents<K extends keyof GeneratedEventMap>(
+  events: readonly K[],
+): { [P in K]: PathValue<SchemaPayload, P> | undefined } {
+  type Result = { [P in K]: PathValue<SchemaPayload, P> | undefined };
+
+  const store = useStore();
+
+  // The array literal is a fresh reference every render; its contents are
+  // what decide whether anything has to be rebuilt.
+  const key = events.join(" ");
+  const eventsRef = useRef(events);
+
+  eventsRef.current = events;
+
+  const cacheRef = useRef<{
+    deltas: Array<unknown>;
+    value: Result;
+  } | null>(null);
+
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      const unsubs = eventsRef.current.map((event) => store.subscribeEvent(event, listener));
+
+      return () => unsubs.forEach((unsub) => unsub());
+    },
+    [store, key],
+  );
+
+  const getSnapshot = useCallback(() => {
+    const list = eventsRef.current;
+    const deltas = list.map((event) => store.getEvent(event));
+    const cache = cacheRef.current;
+
+    if (cache && cache.deltas.length === deltas.length) {
+      const unchanged = deltas.every((delta, i) => delta === cache.deltas[i]);
+
+      if (unchanged) {
+        return cache.value;
+      }
+    }
+
+    const value = {} as Result;
+
+    list.forEach((event, i) => {
+      value[event] = (deltas[i] as Delta<PathValue<SchemaPayload, K>> | undefined)?.current;
+    });
+
+    cacheRef.current = {
+      deltas,
+      value,
+    };
+
+    return value;
+  }, [store, key]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/**
+ * The last full `"update"` payload — the whole merged state as the server
+ * sees it.
+ *
+ * Re-renders on every GSI tick (64 Hz with a live game), so reach for
+ * {@link useGSIEvent} or {@link useGSISelector} for anything that renders
+ * often. This is for the cases that genuinely need the whole tree: debug
+ * overlays, state dumps, custom derivations that span blocks.
+ */
+export function useGSIState(): SchemaPayload | undefined {
+  const store = useStore();
+
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribeEvent("update", listener),
+    [store],
+  );
+
+  const getSnapshot = useCallback(
+    () => store.getEvent("update") as SchemaPayload | undefined,
+    [store],
+  );
+
+  return useSyncExternalStore(subscribe, getSnapshot, UNDEFINED_SERVER_SNAPSHOT);
+}
+
+/**
  * Subscribe to connection status. Decoupled from event state — changes here
  * do not re-render components that only consume events.
  */
@@ -290,6 +413,12 @@ export function useGSIStatus() {
  * Escape hatch for manual lifecycle control. Normally the connection is
  * ref-counted against live subscribers; use this if you want to keep it open
  * between subscriptions or force-close it.
+ *
+ * `clear()` drops every cached event value and re-renders the subscribers
+ * that had one. Disconnecting on its own keeps the last known values (so the
+ * UI holds its last frame through a reconnect) — call `clear()` when the
+ * retained state would be misleading rather than merely stale, e.g. after
+ * switching servers or ending a match.
  */
 export function useGSIClient() {
   const store = useStore();
@@ -298,6 +427,7 @@ export function useGSIClient() {
     () => ({
       connect: store.connect,
       disconnect: store.disconnect,
+      clear: store.clear,
     }),
     [store],
   );

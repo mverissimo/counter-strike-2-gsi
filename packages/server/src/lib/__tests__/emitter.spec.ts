@@ -162,4 +162,57 @@ describe("@server/lib: createEmitter", () => {
       expect(late).toHaveBeenCalledOnce();
     });
   });
+
+  describe("listenerCount", () => {
+    it("returns 0 for an event nobody listens to", () => {
+      const emitter = createEmitter<{
+        ping: number;
+      }>();
+
+      expect(emitter.listenerCount("ping")).toBe(0);
+    });
+
+    it("counts every registration, including duplicates of the same handler", () => {
+      const emitter = createEmitter<{
+        ping: number;
+      }>();
+      const handler = vi.fn();
+
+      emitter.on("ping", handler);
+      emitter.on("ping", handler);
+
+      expect(emitter.listenerCount("ping")).toBe(2);
+    });
+
+    it("decreases as handlers unsubscribe and hits 0 on off() without a handler", () => {
+      const emitter = createEmitter<{
+        ping: number;
+      }>();
+      const first = vi.fn();
+
+      const unsub = emitter.on("ping", first);
+
+      emitter.on("ping", vi.fn());
+      unsub();
+
+      expect(emitter.listenerCount("ping")).toBe(1);
+
+      emitter.off("ping");
+
+      expect(emitter.listenerCount("ping")).toBe(0);
+    });
+
+    it("stays consistent with eventNames()", () => {
+      const emitter = createEmitter<{
+        ping: number;
+        pong: number;
+      }>();
+
+      emitter.on("ping", vi.fn());
+
+      expect(emitter.eventNames()).toEqual(["ping"]);
+      expect(emitter.listenerCount("ping")).toBe(1);
+      expect(emitter.listenerCount("pong")).toBe(0);
+    });
+  });
 });

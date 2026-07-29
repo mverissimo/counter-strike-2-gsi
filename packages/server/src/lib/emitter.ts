@@ -8,6 +8,8 @@ export interface Emitter<Events extends EventMap = EventMap> {
   emit<K extends keyof Events>(type: K, payload: Events[K]): void;
   /** Event names that currently have at least one listener. */
   eventNames(): Array<keyof Events>;
+  /** Number of listeners registered for `type`. */
+  listenerCount<K extends keyof Events>(type: K): number;
 }
 
 export function createEmitter<Events extends EventMap>() {
@@ -63,6 +65,9 @@ export function createEmitter<Events extends EventMap>() {
       }
 
       return names;
+    },
+    listenerCount<K extends keyof Events>(type: K) {
+      return handlers.get(type)?.length ?? 0;
     },
     emit<K extends keyof Events>(type: K, payload: Events[K]) {
       const set = handlers.get(type);

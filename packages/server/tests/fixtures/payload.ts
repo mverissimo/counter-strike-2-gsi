@@ -85,6 +85,23 @@ export const payload: SchemaPayload = {
         defuse_kit: false,
         round_totaldmg: 300,
       },
+      weapons: {
+        weapon_0: {
+          name: "weapon_ak47",
+          type: "Rifle",
+          paintkit: "default",
+          state: "active",
+          ammo_clip: 30,
+          ammo_clip_max: 30,
+          ammo_reserve: 90,
+        },
+        weapon_1: {
+          name: "weapon_knife",
+          type: "Knife",
+          paintkit: "default",
+          state: "holstered",
+        },
+      },
     },
     "76561198000000002": {
       steamid: "76561198000000002",
@@ -103,6 +120,17 @@ export const payload: SchemaPayload = {
         smoked: 0,
         defuse_kit: false,
         round_totaldmg: 300,
+      },
+      weapons: {
+        weapon_0: {
+          name: "weapon_awp",
+          type: "SniperRifle",
+          paintkit: "default",
+          state: "active",
+          ammo_clip: 5,
+          ammo_clip_max: 5,
+          ammo_reserve: 30,
+        },
       },
     },
     "76561198000000003": {

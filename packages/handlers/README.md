@@ -10,8 +10,6 @@ pnpm add @counter-strike-2-gsi/handlers
 pnpm add hono
 ```
 
-(Not published to npm yet — use `"workspace:*"` inside this monorepo.)
-
 ## Entry points
 
 The root export (`@counter-strike-2-gsi/handlers`) is runtime-free: shared core types (`GSIHandlerOptions`, `SSEOptions`, `WSOptions`, writer/session interfaces) and helpers (`classifyHandlerError`, `safeTokenEqual`). Runtime code lives behind subpaths so you only pull in your host's dependencies:
@@ -95,7 +93,7 @@ WS routes are only registered when you pass an `upgradeWebSocket` helper — inj
 | `sse`                            | `{}`                          | SSE options (below), minus `manager`.                                                                                                         |
 | `ws`                             | `{}`                          | WS options (below), minus `manager`.                                                                                                          |
 
-**SSE options:** `events` (which `EventMap` events to forward, default `["update"]`), `sendInitialState` (send full state on connect, default `true`), `heartbeatMs` (comment ping, default `30_000`), `maxReplayEvents` (default `50`), `maxReplayAgeMs` (default `60_000`), `logger` (default `console.log`).
+**SSE options:** `events` (which `EventMap` events to forward, default `["update"]`), `sendInitialState` (`boolean | "only-if-no-replay"`, default `true` — see [replay vs. initial state](#replay-vs-initial-state)), `heartbeatMs` (comment ping, default `30_000`), `maxReplayEvents` (default `50`), `maxReplayAgeMs` (default `60_000`), `logger` (default `console.log`).
 
 **WS options:** `events`, `sendInitialState`, `logger` — same semantics, no replay/heartbeat.
 
@@ -104,8 +102,23 @@ WS routes are only registered when you pass an `upgradeWebSocket` helper — inj
 ## Protocol details
 
 - **SSE** — each event is sent with an `id`, the `EventMap` event name as the SSE `event:` field, and a JSON-encoded payload. Reconnecting clients that send `Last-Event-ID` get missed events replayed from a bounded buffer (`maxReplayEvents` / `maxReplayAgeMs`). Heartbeat comments keep proxies from idling the connection out.
+- **Event ids** are `<timestamp>-<counter>`, ordered by that pair. The timestamp is clamped to a monotonic high-water mark, so a wall-clock step backwards (NTP correction, VM resume) can't mint ids that sort before events the client already saw, or make freshly buffered events look expired. Treat ids as opaque and increasing, not as wall-clock readings.
 - **WS** — each message is a JSON frame `{ event, data }`, mirroring the SSE pair so client code can share payload types.
 - Both transports serialize writes per connection, so slow/async writers can't interleave or drop events under 64 Hz load.
+
+### Replay vs. initial state
+
+On reconnect the core writes in a fixed order: **buffered events newer than `Last-Event-ID` first, then the initial state snapshot, then live events.** State wins, so a client can never end up behind what it just replayed — but it does mean the tail of the replay is logically redundant, and a client that treats every `"update"` as a discrete tick will double-count it.
+
+`sendInitialState` picks how to handle that:
+
+| Value                 | Behavior                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `true` (default)      | Always send the snapshot after replay. Right for clients that overwrite a snapshot.                                             |
+| `false`               | Never send it; the client lives off the event stream alone.                                                                     |
+| `"only-if-no-replay"` | Send it only when nothing was replayed, i.e. for genuinely new connections. Right for clients that fold events into a timeline. |
+
+A reconnect whose `Last-Event-ID` is already the newest buffered id replays nothing, so `"only-if-no-replay"` still resyncs it from state rather than leaving it with neither.
 
 ## Ingress hardening
 

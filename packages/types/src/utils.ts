@@ -5,8 +5,41 @@
  * @example
  * Given `allplayers.custom.joined`, the key `"custom"` is skipped,
  * producing the event `"allplayers:joined"` instead of `"allplayers:custom:joined"`.
+ *
+ * @remarks
+ * `allplayers.custom` is the only member today, and the flatten is what makes
+ * the schema-derived names line up with the ones the server actually emits.
+ * `"allplayers:joined"`/`"allplayers:left"` are *computed* by the server from
+ * the SteamID set difference between two states, not read out of the payload
+ * (`@counter-strike-2-gsi/server`'s `Processor.joinLeft`), and they are
+ * declared by hand on `EventMap`. Flattening keeps the two definitions on the
+ * same key instead of leaving a dead `"allplayers:custom:joined"` alongside
+ * them — CS2 does send `allplayers.custom` when the roster changes, and
+ * without the flatten a granular diff would emit that name too, splitting one
+ * concept across two events. Drop the flatten only if the hand-declared
+ * events on `EventMap` are renamed to match.
  */
 type FlattenedKeys = "custom";
+
+/**
+ * Maximum number of path segments {@link LeafPaths} and {@link PathValue}
+ * will traverse.
+ *
+ * Each level multiplies the number of instantiated types, so this is the
+ * lever that keeps schema changes from blowing up compile times. 5 is the
+ * minimum that still covers the deepest real event family,
+ * `allplayers:${string}:weapons:${string}:<field>`. Flattened keys don't
+ * consume a slot.
+ *
+ * Raise it only alongside a real schema change that needs the depth. The
+ * assertions in `src/__tests__/paths.spec.ts` walk the arktype schema and
+ * fail if a real path outgrows this number, so the limit can't silently start
+ * swallowing events.
+ */
+export const MAX_PATH_DEPTH = 5;
+
+/** Type-level mirror of {@link MAX_PATH_DEPTH}; the two cannot drift. */
+type MaxPathDepth = typeof MAX_PATH_DEPTH;
 
 /**
  * Extracts only explicitly declared keys from a type, removing
@@ -82,9 +115,8 @@ type BuildPath<Prefix extends string, K extends string> = Prefix extends "" ? K 
  *   `${string}`, enabling pattern-matched events like `allplayers:${string}:name`.
  * - **Arrays**: Recursion stops at array types to avoid emitting prototype
  *   method keys like `concat`, `map`, etc.
- * - **Depth limit**: Recursion is capped at 5 levels to prevent excessive
- *   type instantiation. 5 is the minimum that covers the deepest real
- *   event family, `allplayers:${string}:weapons:${string}:<field>`.
+ * - **Depth limit**: Recursion is capped at {@link MaxPathDepth} levels to
+ *   prevent excessive type instantiation.
  *
  * @template T - The object type to traverse.
  * @template Prefix - Accumulated path prefix (internal).
@@ -117,7 +149,7 @@ export type LeafPaths<
   T,
   Prefix extends string = "",
   D extends unknown[] = [],
-> = D["length"] extends 5
+> = D["length"] extends MaxPathDepth
   ? never
   : T extends object
     ? T extends readonly any[]
@@ -185,7 +217,11 @@ type LookupKey<T, K extends string> = string extends K
  * // string[]
  * ```
  */
-export type PathValue<T, P extends string, D extends unknown[] = []> = D["length"] extends 5
+export type PathValue<
+  T,
+  P extends string,
+  D extends unknown[] = [],
+> = D["length"] extends MaxPathDepth
   ? unknown
   : NonNullable<T> extends infer NT
     ? NT extends object

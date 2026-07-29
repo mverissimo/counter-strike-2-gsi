@@ -54,10 +54,14 @@ export class MockWebSocket {
    * Simulate a server-initiated close (fires onclose). Client-initiated
    * `close()` only updates readyState to match the real WebSocket contract
    * where the client nulls out its onclose before closing.
+   *
+   * Defaults to 1006 (abnormal closure) — what a socket reports when the
+   * connection drops without a close frame, i.e. the case reconnect exists
+   * for. Pass 1000/1001 for a deliberate server-side close.
    */
-  serverClose() {
+  serverClose(code = 1006) {
     this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.(new Event("close"));
+    this.onclose?.(new CloseEvent("close", { code }));
   }
 
   /**

@@ -114,11 +114,35 @@ describe("@server/utils/: parsePayload", () => {
       vi.restoreAllMocks();
     });
 
-    it("non-strict (default): logs a warning and returns the raw object", () => {
+    it("non-strict (default): logs a warning and drops the invalid block", () => {
       const result = parsePayload(invalidPayload);
 
       expect(console.warn).toHaveBeenCalledOnce();
-      expect(result).toBe(invalidPayload);
+      expect(result).toEqual({});
+    });
+
+    it("non-strict (default): keeps the blocks that validated", () => {
+      const mixed = {
+        // `round` is valid on its own; `player.state` is not.
+        round: { phase: "live" },
+        player: { state: { health: 999 } },
+      };
+
+      const result = parsePayload(mixed);
+
+      expect(result).toEqual({ round: { phase: "live" } });
+    });
+
+    it("non-strict (default): an invalid nested field only costs its own block", () => {
+      const mixed = {
+        ...payload,
+        grenades: { "291": { lifetime: 4.242 } },
+      } as unknown;
+
+      const result = parsePayload(mixed) as Record<string, unknown>;
+
+      expect(result).not.toHaveProperty("grenades");
+      expect(result).toMatchObject({ player: { name: "s1mple" }, map: { name: "de_inferno" } });
     });
 
     it("non-strict (default): warning message contains the validation summary", () => {

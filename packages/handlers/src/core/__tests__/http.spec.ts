@@ -56,4 +56,19 @@ describe("safeTokenEqual", () => {
     expect(safeTokenEqual("secret", null)).toBe(false);
     expect(safeTokenEqual("secret", 42)).toBe(false);
   });
+
+  // The comparison indexes `received` modulo its own length; an empty string
+  // makes that `i % 0` → NaN, so it gets an explicit path.
+  it("rejects an empty received token without tripping over modulo zero", () => {
+    expect(safeTokenEqual("s", "")).toBe(false);
+    expect(safeTokenEqual("secret-token", "")).toBe(false);
+  });
+
+  it("rejects a non-empty token when nothing is expected", () => {
+    expect(safeTokenEqual("", "secret")).toBe(false);
+  });
+
+  it("treats empty against empty as a match", () => {
+    expect(safeTokenEqual("", "")).toBe(true);
+  });
 });

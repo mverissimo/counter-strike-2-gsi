@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { SchemaPayload } from "@counter-strike-2-gsi/types";
 
 import { mergeDelta } from "../merge";
-import { payload, deltas, clonePayload } from "../../../tests/fixtures";
+import { payload, deltas, clonePayload, frozenPayload } from "../../../tests/fixtures";
 
 describe("@server/utils: merger", () => {
   let previous: SchemaPayload;
@@ -147,5 +147,100 @@ describe("@server/utils: merger", () => {
 
     expect(result.grenades?.["291"]?.flames).toHaveProperty("flame_p682_p1321_n85");
     expect(result.grenades?.["291"]?.flames).toHaveProperty("flame_p700_p1340_n85");
+  });
+
+  it("drops weapons missing from the active player's delta", () => {
+    const result = mergeDelta(previous, deltas.weaponDropped);
+
+    expect(result.player?.weapons).not.toHaveProperty("weapon_1");
+    expect(result.player?.weapons?.weapon_0?.ammo_clip).toBe(12);
+  });
+
+  it("drops weapons missing from an allplayers entry", () => {
+    const result = mergeDelta(previous, deltas.allplayerWeaponDropped);
+
+    const weapons = result.allplayers?.["76561198000000001"]?.weapons;
+
+    expect(weapons).not.toHaveProperty("weapon_1");
+    expect(weapons).toHaveProperty("weapon_0");
+  });
+
+  it("leaves other players' weapons untouched when one player drops a weapon", () => {
+    const result = mergeDelta(previous, deltas.allplayerWeaponDropped);
+
+    expect(result.allplayers?.["76561198000000002"]?.weapons).toEqual(
+      previous.allplayers?.["76561198000000002"]?.weapons,
+    );
+  });
+
+  // Pruning used to `delete` straight out of the merged tree, which is only
+  // safe as long as the merger never shares a sub-object with the state it
+  // merged from. `manager.state` hands out live sub-trees and the processor
+  // diffs `previous` against `current` right after this runs, so a prune that
+  // reaches back into the old state silently rewrites both.
+  describe("prune does not mutate the previous state", () => {
+    it("keeps the previous grenades collection intact after a removal", () => {
+      const grenades = previous.grenades;
+      const before = clonePayload(previous);
+
+      const result = mergeDelta(previous, deltas.grenadesUpdateAndRemove);
+
+      expect(result.grenades).not.toHaveProperty("291");
+      expect(previous.grenades).toBe(grenades);
+      expect(previous).toEqual(before);
+    });
+
+    it("keeps the previous roster intact after a player leaves", () => {
+      const allplayers = previous.allplayers;
+      const before = clonePayload(previous);
+
+      const result = mergeDelta(previous, deltas.playerLeft);
+
+      expect(result.allplayers).not.toHaveProperty("76561198000000003");
+      expect(previous.allplayers).toBe(allplayers);
+      expect(previous).toEqual(before);
+    });
+
+    it("keeps the previous player's weapons intact after a drop", () => {
+      const weapons = previous.player?.weapons;
+      const before = clonePayload(previous);
+
+      const result = mergeDelta(previous, deltas.weaponDropped);
+
+      expect(result.player?.weapons).not.toHaveProperty("weapon_1");
+      expect(previous.player?.weapons).toBe(weapons);
+      expect(previous).toEqual(before);
+    });
+
+    it("keeps the previous allplayers weapons intact after a drop", () => {
+      const before = clonePayload(previous);
+
+      const result = mergeDelta(previous, deltas.allplayerWeaponDropped);
+
+      expect(result.allplayers?.["76561198000000001"]?.weapons).not.toHaveProperty("weapon_1");
+      expect(previous).toEqual(before);
+    });
+
+    it("survives a frozen previous state (no writes attempted at all)", () => {
+      const frozen = frozenPayload(payload);
+
+      Object.freeze(frozen.grenades);
+      Object.freeze(frozen.allplayers);
+      Object.freeze(frozen.player);
+      Object.freeze(frozen.player?.weapons);
+
+      expect(() => mergeDelta(frozen, deltas.grenadesUpdateAndRemove)).not.toThrow();
+      expect(() => mergeDelta(frozen, deltas.playerLeft)).not.toThrow();
+      expect(() => mergeDelta(frozen, deltas.weaponDropped)).not.toThrow();
+    });
+
+    it("returns the untouched collection reference when nothing is pruned", () => {
+      // `grenadesUpdateExisting` names both grenades, so the collection keeps
+      // all its keys and only the changed grenade should be a new object.
+      const result = mergeDelta(previous, deltas.grenadesUpdateExisting);
+
+      expect(Object.keys(result.grenades ?? {})).toEqual(["291", "331"]);
+      expect(previous.grenades).toHaveProperty("291");
+    });
   });
 });

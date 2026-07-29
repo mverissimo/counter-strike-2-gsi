@@ -35,9 +35,24 @@ export interface SSEOptions {
   events?: Array<keyof EventMap>;
 
   /**
-   * Send full state on connection
+   * Send full state on connection.
+   *
+   * A reconnecting client sends `Last-Event-ID`, and replay runs first — so
+   * with `true` it receives the replayed events *and then* a full `"update"`
+   * carrying current state. That ordering is deliberate (state always wins,
+   * the client never ends up behind), but it does mean the tail of the replay
+   * is logically redundant, and a client that treats every `"update"` as a
+   * discrete tick will double-count it.
+   *
+   * - `true` (default): always send state after replay.
+   * - `false`: never send it; the client lives off the event stream.
+   * - `"only-if-no-replay"`: send it only when nothing was replayed, i.e. for
+   *   genuinely new connections. Use this when the client folds events into a
+   *   timeline rather than overwriting a snapshot.
+   *
+   * @default true
    */
-  sendInitialState?: boolean;
+  sendInitialState?: boolean | "only-if-no-replay";
 
   /**
    * Heartbeat interval (ms)

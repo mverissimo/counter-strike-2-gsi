@@ -9,7 +9,12 @@ export interface GSIOptions {
   /**
    * In strict mode, `update()` rethrows validation errors (after emitting
    * the `"error"` event) so transport handlers can answer with a 4xx.
-   * When false, invalid payloads log a warning and are applied as-is.
+   *
+   * When false, a validation failure logs a warning and the payload is
+   * salvaged rather than trusted wholesale: the top-level blocks that failed
+   * are dropped and only the blocks that validated are merged into state. If
+   * the payload root itself is invalid there is nothing to salvage and the
+   * update is discarded entirely.
    * @default false
    */
   strictValidation?: boolean;
@@ -75,6 +80,23 @@ export class GSI {
     this.emitter.off(event, handler);
   }
 
+  /**
+   * Event names that currently have at least one listener. Mirrors what
+   * granular mode reads to decide which blocks are worth deep-diffing, so
+   * it's also the honest answer to "what is this instance actually paying
+   * for?".
+   */
+  eventNames(): Array<keyof EventMap> {
+    return this.emitter.eventNames();
+  }
+
+  /**
+   * Number of listeners registered for `event`.
+   */
+  listenerCount<E extends keyof EventMap>(event: E): number {
+    return this.emitter.listenerCount(event);
+  }
+
   get state(): Readonly<SchemaPayload> {
     return this.current;
   }
@@ -87,7 +109,6 @@ export class GSI {
       });
 
       const previous = this.current;
-      const mode = this.options.changeDetection;
 
       // Skip mergeDelta's internal pre-diff: the processor detects changes
       // per block below, so diffing here would walk the state twice on the
@@ -97,13 +118,7 @@ export class GSI {
       this.current = newState;
 
       if (newState !== previous) {
-        if (mode === "granular") {
-          this.processor.granular(previous, newState, this.emitter);
-        } else if (mode === "block") {
-          this.processor.block(previous, newState, this.emitter);
-        } else {
-          this.processor.joinLeft(previous, newState, this.emitter);
-        }
+        this.emitChanges(previous, newState);
       }
 
       this.emitter.emit("update", this.current);
@@ -126,16 +141,26 @@ export class GSI {
 
     this.current = {};
 
-    const mode = this.options.changeDetection;
-
-    if (mode === "block") {
-      this.processor.block(previous, this.current, this.emitter);
-    } else if (mode === "granular") {
-      this.processor.granular(previous, this.current, this.emitter);
-    } else {
-      this.processor.joinLeft(previous, this.current, this.emitter);
-    }
+    this.emitChanges(previous, this.current);
 
     this.emitter.emit("update", this.current);
+  }
+
+  /**
+   * Routes a state transition to the processor for the configured
+   * change-detection mode. `"allplayers:joined"`/`"allplayers:left"` are
+   * emitted in every mode — `granular`/`block` fan them out themselves,
+   * `minimal` gets them from `joinLeft` directly.
+   */
+  private emitChanges(previous: SchemaPayload, current: SchemaPayload) {
+    const mode = this.options.changeDetection;
+
+    if (mode === "granular") {
+      this.processor.granular(previous, current, this.emitter);
+    } else if (mode === "block") {
+      this.processor.block(previous, current, this.emitter);
+    } else {
+      this.processor.joinLeft(previous, current, this.emitter);
+    }
   }
 }

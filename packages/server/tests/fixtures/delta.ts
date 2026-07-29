@@ -188,6 +188,39 @@ export const deltas = {
     },
   } as Partial<SchemaPayload>,
 
+  /** s1mple dropped the knife — only weapon_0 is still reported */
+  weaponDropped: {
+    player: {
+      weapons: {
+        weapon_0: {
+          name: "weapon_ak47",
+          type: "Rifle",
+          paintkit: "default",
+          state: "active",
+          ammo_clip: 12,
+          ammo_clip_max: 30,
+          ammo_reserve: 90,
+        },
+        // "weapon_1" intentionally omitted
+      },
+    },
+  } as Partial<SchemaPayload>,
+
+  /** Same drop, seen through the allplayers roster */
+  allplayerWeaponDropped: {
+    allplayers: {
+      "76561198000000001": {
+        steamid: "76561198000000001",
+        weapons: {
+          weapon_0: payload.allplayers?.["76561198000000001"]?.weapons?.weapon_0,
+          // "weapon_1" intentionally omitted
+        },
+      },
+      "76561198000000002": payload.allplayers?.["76561198000000002"],
+      "76561198000000003": payload.allplayers?.["76561198000000003"],
+    },
+  } as Partial<SchemaPayload>,
+
   /** Inferno "291" spreads — new flame point appears in sub-object */
   flamesUpdate: {
     grenades: {

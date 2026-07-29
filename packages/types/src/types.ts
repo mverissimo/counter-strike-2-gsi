@@ -4,6 +4,7 @@ import type { SchemaPayload } from "./schema";
 import type { LeafPaths } from "./utils";
 
 export type { PathValue } from "./utils";
+export { MAX_PATH_DEPTH } from "./utils";
 
 /**
  * Represents a state change between two game state payloads.

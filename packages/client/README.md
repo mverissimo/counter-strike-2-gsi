@@ -10,8 +10,6 @@ pnpm add @counter-strike-2-gsi/client react
 
 React is a peer dependency, but only the `use*`/`GSIProvider` exports need it — `createSSEClient` / `createWSClient` are plain functions usable anywhere.
 
-(Not published to npm yet — use `"workspace:*"` inside this monorepo.)
-
 ## React usage
 
 ```tsx
@@ -58,12 +56,24 @@ All event hooks are fully typed against the schema — event names autocomplete,
   );
   ```
 
+- **`useGSIEvents(events)`** — several events at once, as one object keyed by event name. Saves a hook call per event when a component reads a handful of unrelated paths. The array is compared by content (pass an inline literal freely) and the returned object is referentially stable until one of the subscribed events fires, so it's safe as a `useMemo`/`useEffect` dependency.
+
+  ```tsx
+  const { "player:state:health": health, "round:phase": phase } = useGSIEvents([
+    "player:state:health",
+    "round:phase",
+  ]);
+  ```
+
+- **`useGSIState()`** — the last full `"update"` payload, i.e. the whole merged state. Re-renders on every tick (~64 Hz in a live game), so prefer `useGSIEvent` / `useGSISelector` for anything that renders often; this is for debug overlays, state dumps, and derivations that span blocks.
 - **`useGSIStatus()`** — connection status, decoupled from event state (status flips don't re-render event consumers).
-- **`useGSIClient()`** — escape hatch: `{ connect, disconnect }` for manual lifecycle control.
+- **`useGSIClient()`** — escape hatch: `{ connect, disconnect, clear }` for manual lifecycle control.
 
 ### Connection lifecycle
 
 The provider creates one shared connection per `url`. It's ref-counted against live subscribers: the socket opens when the first hook subscribes, closes when the last unsubscribes, and closes on provider unmount. Use `useGSIClient()` if you want to hold it open across subscription gaps.
+
+Cached event values **survive a disconnect** — a HUD holds its last frame through a reconnect blip instead of blanking out and flashing back. Read `useGSIStatus()` when you need to tell "current" from "last known". Call `clear()` from `useGSIClient()` when the retained values would be misleading rather than merely stale (switching servers, ending a match): it drops every cached value and re-renders the subscribers that had one, without tearing down the subscription.
 
 ## Standalone clients (no React)
 
@@ -97,7 +107,17 @@ Both clients share the same shape (`connect` / `disconnect` / `subscribe`) and o
 | `reconnectMinDelayMs` | `500`        | Backoff floor.                                                                     |
 | `reconnectMaxDelayMs` | `10_000`     | Backoff ceiling.                                                                   |
 
-Reconnect notes: the SSE client re-opens the `EventSource` itself once it reaches the terminal `CLOSED` state (the browser's built-in retry only covers transient failures); the WS client reconnects on any unexpected close. `disconnect()` always wins — no reconnect after a user-initiated close.
+WS only:
+
+| Option                  | Default | Description                                                       |
+| ----------------------- | ------- | ----------------------------------------------------------------- |
+| `reconnectOnCleanClose` | `false` | Also reconnect when the server closes with code `1000` or `1001`. |
+
+Reconnect notes:
+
+- The **SSE** client re-opens the `EventSource` itself once it reaches the terminal `CLOSED` state (the browser's built-in retry only covers transient failures). Subscriptions are the source of truth, so handlers registered while the connection is down are attached on the next connect.
+- The **WS** client reconnects on unexpected closes (`1006` and friends), but not on a clean one: `1000` (normal) and `1001` (going away) are the server saying it's done — a shutdown, a deploy, a deliberate kick — and retrying into that is just a backoff loop against an endpoint with no intention of serving. Set `reconnectOnCleanClose: true` when the server closes cleanly for reasons the client should ride out, e.g. a rolling restart behind a load balancer. Either way the status still goes to `"disconnected"`.
+- `disconnect()` always wins — no reconnect after a user-initiated close.
 
 ## Development
 
