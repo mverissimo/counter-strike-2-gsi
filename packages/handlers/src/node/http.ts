@@ -37,7 +37,12 @@ export function createNodeHandler(options: GSIHandlerOptions<IncomingMessage>) {
       return;
     }
 
-    let body = "";
+    // Collect Buffers and decode once at the end. Concatenating into a string
+    // per chunk re-allocates the whole body on every tick, which is real GC
+    // pressure at 64 Hz for payloads anywhere near the 1 MiB cap — and it
+    // would decode UTF-8 on chunk boundaries, corrupting multi-byte
+    // characters that straddle two chunks.
+    const chunks: Buffer[] = [];
 
     try {
       let received = 0;
@@ -59,14 +64,14 @@ export function createNodeHandler(options: GSIHandlerOptions<IncomingMessage>) {
           return;
         }
 
-        body += chunk;
+        chunks.push(chunk as Buffer);
       }
 
-      if (!body) {
+      if (received === 0) {
         throw new Error("GSI: Empty payload");
       }
 
-      const payload = JSON.parse(body);
+      const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
 
       if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
         throw new Error("GSI: Invalid or empty payload");

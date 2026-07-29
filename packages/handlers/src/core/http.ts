@@ -42,8 +42,17 @@ export function safeTokenEqual(expected: string, received: unknown): boolean {
 
   let mismatch = expected.length === received.length ? 0 : 1;
 
+  // An empty `received` has no character to compare against: `i % 0` is NaN,
+  // `charCodeAt(NaN)` is NaN, and `^` then coerces it to 0 — the right answer
+  // by accident. Substitute the 0 explicitly instead; the length mismatch
+  // above already forces a false result. The loop still runs `expected.length`
+  // times either way, so the comparison stays constant-time.
+  const wrap = received.length;
+
   for (let i = 0; i < expected.length; i++) {
-    mismatch |= expected.charCodeAt(i) ^ received.charCodeAt(i % (received.length || 1));
+    const code = wrap === 0 ? 0 : received.charCodeAt(i % wrap);
+
+    mismatch |= expected.charCodeAt(i) ^ code;
   }
 
   return mismatch === 0;
