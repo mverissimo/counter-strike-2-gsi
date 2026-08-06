@@ -83,6 +83,7 @@ Regardless of mode, every update also emits:
 - **Stripped keys.** `auth` (the shared secret — never allowed into state that gets broadcast to clients), `previously`, and `added` (CS2's own change-bookkeeping blocks) are removed before merging. You will never receive `previously:*` events.
 - **Listener errors are contained.** A throwing listener is logged and does not break other listeners or the update loop.
 - **Validation failures are non-fatal by default.** The failing top-level blocks are dropped and the rest of the payload is still merged, with a console warning naming what went wrong — a malformed `player` never costs you a perfectly good `map`. If the payload root itself is invalid there is nothing to salvage and the update is discarded whole. Turn on `strictValidation` if you'd rather reject outright, or turn off `validatePayload` to skip schema validation entirely when the source is trusted.
+- **A validation warning is often CS2 drift, not bad data.** Most schema fields are wide or open and never fail; the ones that can are the closed enums mirroring CS2's own values (round phase, bomb state, weapon type, grenade type, …). A warning naming one of those after a game update usually means Valve added a new value before `@counter-strike-2-gsi/types` knew about it — see [the types README](../types/README.md#a-validation-warning-can-mean-cs2-changed-not-that-your-data-is-bad) for the full list and how to extend the schema.
 
 ## Development
 

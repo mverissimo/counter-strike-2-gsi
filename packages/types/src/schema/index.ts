@@ -1,5 +1,10 @@
 import { scope } from "arktype";
 
+// The closed string unions below (mode/phase/state/type/team/activity fields)
+// mirror CS2's own enums. A game update that adds a new value to one of them
+// shows up at runtime as a validation warning naming that exact path — that's
+// CS2 drift, not bad data. See the "validation warning" note in this
+// package's README before dismissing one.
 const $root = scope({
   auth: {
     token: "string",

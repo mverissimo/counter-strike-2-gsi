@@ -51,6 +51,12 @@ Notes on deliberate schema looseness:
 - `map.name` is an open `string` (pinning the map pool would reject workshop maps and break whole-payload validation on every pool update).
 - All top-level blocks on `payload` are optional — CS2 only sends the blocks enabled in your `gamestate_integration_*.cfg`, and omits e.g. `bomb`/`allplayers` outside of observer mode.
 
+### A validation warning can mean CS2 changed, not that your data is bad
+
+Most fields are wide (`string`, `number`) or fully open (unknown keys pass through arktype's default policy), so they never fail validation. The fields that _can_ fail are the closed string unions that mirror CS2's own enums: `map.mode`, `map.phase`/`round.phase`/`phase_countdowns.phase`, `round.win_team`, `bomb.state`/`round.bomb`, `player.activity`, `player.team`, `player.weapons[].type`/`.state`, and `grenades[].type`.
+
+When Valve ships a game update that adds a new value to one of these — a new grenade type, a new round-end reason — before this schema knows about it, `schema.payload()` fails validation on that one field. `@counter-strike-2-gsi/server`'s default (non-strict) handling then drops the **entire top-level block** the field lives in for that update and logs a warning naming the exact path and value (see the [server README](../server/README.md#behavior-worth-knowing)). That warning isn't saying the payload is corrupt — it's saying CS2 sent a value this schema doesn't recognize yet. Treat it as a prompt to check what changed and extend the relevant union in [src/schema/index.ts](src/schema/index.ts), not as noise to suppress.
+
 ## Example
 
 ```ts
