@@ -18,14 +18,8 @@ export interface WSClientOptions {
    */
   url: string;
 
-  /**
-   * Called on connection state changes.
-   */
   onStatusChange?: (status: WSStatus) => void;
 
-  /**
-   * Called on transport or parse errors.
-   */
   onError?: (error: WSError) => void;
 
   /**

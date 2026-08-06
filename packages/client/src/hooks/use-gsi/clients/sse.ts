@@ -14,19 +14,10 @@ export type SSEError =
     };
 
 export interface SSEClientOptions {
-  /**
-   * SSE endpoint URL
-   */
   url: string;
 
-  /**
-   * Called on connection state changes
-   */
   onStatusChange?: (status: SSEStatus) => void;
 
-  /**
-   * Called on transport or parse errors
-   */
   onError?: (error: SSEError) => void;
 
   /**

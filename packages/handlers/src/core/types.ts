@@ -2,14 +2,8 @@ import type { GSI } from "@counter-strike-2-gsi/server";
 import type { EventMap } from "@counter-strike-2-gsi/types";
 
 export interface GSIHandlerOptions<Req = unknown> {
-  /**
-   * The GSI manager instance
-   */
   manager: GSI;
 
-  /**
-   * Optional auth token
-   */
   token?: string;
 
   /**
@@ -17,20 +11,15 @@ export interface GSIHandlerOptions<Req = unknown> {
    */
   onError?: (error: Error, req: Req) => void;
 
-  /**
-   * Optional custom path for the GSI POST endpoint
-   */
   gsiPath?: string;
 }
 
 export interface SSEOptions {
-  /**
-   * The GSI manager instance
-   */
   manager: GSI;
 
   /**
-   * Events to forward. Defaults to ["update"]
+   * Events to forward.
+   * @default ["update"]
    */
   events?: Array<keyof EventMap>;
 
@@ -54,67 +43,41 @@ export interface SSEOptions {
    */
   sendInitialState?: boolean | "only-if-no-replay";
 
-  /**
-   * Heartbeat interval (ms)
-   */
+  /** @default 30_000 */
   heartbeatMs?: number;
 
-  /**
-   * Max events in replay buffer
-   */
+  /** @default 50 */
   maxReplayEvents?: number;
 
-  /**
-   * Max age of replayable events (ms)
-   */
+  /** @default 60_000 */
   maxReplayAgeMs?: number;
 
-  /**
-   * Optional logger (defaults to console.log)
-   */
+  /** @default console.log */
   logger?: (message: string) => void;
 }
 
 export interface WSOptions {
-  /**
-   * The GSI manager instance
-   */
   manager: GSI;
 
   /**
-   * Events to forward. Defaults to ["update"]
+   * Events to forward.
+   * @default ["update"]
    */
   events?: Array<keyof EventMap>;
 
   /**
-   * Send full state on connection
+   * Send full state on connection.
+   * @default true
    */
   sendInitialState?: boolean;
 
-  /**
-   * Optional logger (defaults to console.log)
-   */
+  /** @default console.log */
   logger?: (message: string) => void;
 }
 
 export interface GSIServerOptions<Req = unknown> extends GSIHandlerOptions<Req> {
-  /**
-   * WS-specific options
-   */
   ws?: Omit<WSOptions, "manager">;
-
-  /**
-   * SSE-specific options
-   */
   sse?: Omit<SSEOptions, "manager">;
-
-  /**
-   * Custom path for SSE endpoint.
-   */
   ssePath?: string;
-
-  /**
-   * Custom path for WS endpoint.
-   */
   wsPath?: string;
 }

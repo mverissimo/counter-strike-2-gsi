@@ -64,13 +64,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 const COLLECTION_KEYS = new Set<keyof SchemaPayload>(["grenades", "allplayers"]);
 
 /**
- * High-performance immutable merge for CS2 GSI deltas with proper removal support.
+ * Immutable merge of a CS2 GSI delta into current state, with removal support
+ * for the sparse collections in {@link COLLECTION_KEYS} and for weapons.
  *
- * Features:
- * - Early exit via microdiff when no real changes
- * - Smart by-index merging for true arrays
- * - Explicit deletion for missing keys in known collections (grenades, allplayers)
- * - Always returns same reference on no-op
+ * Returns `current` by identity when nothing changed, so callers can use
+ * reference equality to skip work. Pass `skipDiff` when the caller diffs the
+ * result itself and the pre-diff would just walk the state twice.
  */
 export function mergeDelta(
   current: SchemaPayload,

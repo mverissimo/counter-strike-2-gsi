@@ -29,8 +29,6 @@ describe("@server/utils: processor", () => {
     vi.mocked(microdiff).mockClear();
   });
 
-  // ─── granular() ────────────────────────────────────────────────────────────
-
   describe("granular()", () => {
     it("emits nothing when states are deep-equal", () => {
       const spy = vi.spyOn(emitter, "emit");

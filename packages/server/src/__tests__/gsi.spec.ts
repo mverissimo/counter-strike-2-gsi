@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GSI } from "../gsi";
 import { payload, clonePayload } from "../../tests/fixtures";
 
-// ---------------------------------------------------------------------------
-// Helpers — always produce fully-valid payloads so ArkType never warns
-// ---------------------------------------------------------------------------
+// Helpers — always produce fully-valid payloads so ArkType never warns.
 
 function withPlayerHealth(hp: number) {
   const p = clonePayload(payload);

@@ -49,9 +49,6 @@ interface CreateStoreOptions {
    */
   url: string;
 
-  /**
-   * Optional callback invoked when the underlying client surfaces an error.
-   */
   onError?: (error: GSIError) => void;
 }
 

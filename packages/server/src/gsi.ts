@@ -90,9 +90,6 @@ export class GSI {
     return this.emitter.eventNames();
   }
 
-  /**
-   * Number of listeners registered for `event`.
-   */
   listenerCount<E extends keyof EventMap>(event: E): number {
     return this.emitter.listenerCount(event);
   }

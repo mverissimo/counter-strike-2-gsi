@@ -8,7 +8,6 @@ export interface Emitter<Events extends EventMap = EventMap> {
   emit<K extends keyof Events>(type: K, payload: Events[K]): void;
   /** Event names that currently have at least one listener. */
   eventNames(): Array<keyof Events>;
-  /** Number of listeners registered for `type`. */
   listenerCount<K extends keyof Events>(type: K): number;
 }
 
