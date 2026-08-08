@@ -1,0 +1,89 @@
+/**
+ * Every value the components share lives here, and nothing else does. A
+ * component's own `.module.css` reaches for these custom properties instead of
+ * redeclaring a colour or a duration, which is what keeps a HUD of unrelated
+ * widgets looking like one HUD.
+ */
+
+:root {
+  /* --- Scale -------------------------------------------------------------
+   * The overlay is authored against a 1920x1080 canvas and every size is in
+   * `rem`, so this one line rescales the whole HUD to whatever the browser
+   * source is set to. 1920 / 120 = 16px, the design's base.
+   * The clamp keeps it legible on a small dev window and stops it blowing up
+   * on an ultrawide.
+   */
+  font-size: clamp(9px, calc(100vw / 120), 22px);
+
+  /* --- Team identity -----------------------------------------------------
+   * Components never name a team colour directly. A container sets `--team`
+   * from `data-team`, and children read `--team` — so a roster row, a health
+   * bar and a score all pick up the right side with no per-component
+   * branching.
+   */
+  --ct: #6ea8e8;
+  --ct-deep: #2f5f96;
+  --t: #e0a54a;
+  --t-deep: #97661d;
+  --team: var(--neutral);
+  --neutral: #9aa4b2;
+
+  /* --- Surfaces ----------------------------------------------------------
+   * Overlay panels sit on top of live gameplay, so they are translucent dark
+   * plates rather than solid boxes. Blur keeps text readable over a bright
+   * skybox without pushing opacity up.
+   */
+  --panel: rgb(10 12 16 / 62%);
+  --panel-strong: rgb(10 12 16 / 84%);
+  --panel-blur: blur(0.5rem);
+  --hairline: rgb(255 255 255 / 12%);
+
+  --text: #f2f5f8;
+  --text-dim: #93a0b0;
+  --text-faint: rgb(242 245 248 / 45%);
+
+  --danger: #e5484d;
+  --warn: #f0a92b;
+  --good: #46c17e;
+  --bomb: #ff4d3d;
+
+  /* --- Type --------------------------------------------------------------
+   * System stack only: an overlay must paint on the first frame, and a web
+   * font that arrives late shows up as a visible reflow on stream.
+   */
+  --sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+
+  /* --- Motion ------------------------------------------------------------
+   * Two speeds only. `--t-value` is for numbers that stream in continuously
+   * (health, ammo, timers) and has to stay under one GSI tick (100ms) or bars
+   * visibly lag the game. `--t-ui` is for things that appear and disappear.
+   */
+  --t-value: 90ms;
+  --t-ui: 220ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --radius: 0.25rem;
+  --gap: 0.75rem;
+}
+
+/**
+ * Resolves the team palette once, at whatever level `data-team` is set. Every
+ * descendant inherits `--team` from here.
+ */
+[data-team="CT"] {
+  --team: var(--ct);
+  --team-deep: var(--ct-deep);
+}
+
+[data-team="T"] {
+  --team: var(--t);
+  --team-deep: var(--t-deep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-value: 0ms;
+    --t-ui: 0ms;
+  }
+}

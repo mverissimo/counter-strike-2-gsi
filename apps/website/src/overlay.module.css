@@ -1,0 +1,22 @@
+/**
+ * The canvas is the only element that positions anything. Widgets place
+ * themselves against it with `position: absolute`, which is what a HUD wants —
+ * there is no document flow to speak of, just anchored regions of a fixed
+ * 1920x1080 frame.
+ */
+.canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Sits directly under the scoreboard. Kept here rather than in
+ * round-history.module.css because *where* the strip goes is a decision about
+ * the overlay's layout, not about the component. */
+.history {
+  position: absolute;
+  inset-block-start: 5.25rem;
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+}

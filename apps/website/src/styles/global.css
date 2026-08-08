@@ -1,0 +1,45 @@
+/**
+ * Reset plus the rules that make this an *overlay* rather than a page. Kept
+ * deliberately short: anything a single component owns belongs in that
+ * component's `.module.css`, not here.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  /* The game is what's behind this page. A background colour of any kind —
+   * including the browser default white — would black out the capture. OBS
+   * browser sources honour a transparent body. */
+  background: transparent;
+
+  /* A HUD never scrolls; a stray overflow would show a scrollbar on stream. */
+  overflow: hidden;
+
+  /* Clicks belong to the game, not the overlay. Re-enable per element only if
+   * a widget genuinely needs to be interactive. */
+  cursor: none;
+  user-select: none;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+}
+
+/* Local development only: `?debug` puts a backdrop behind the overlay so the
+ * translucent panels can be judged against something other than white. */
+body:has([data-debug="true"]) {
+  background:
+    radial-gradient(circle at 30% 20%, #35405a 0%, transparent 55%),
+    radial-gradient(circle at 75% 70%, #5a4535 0%, transparent 50%), #14161c;
+}

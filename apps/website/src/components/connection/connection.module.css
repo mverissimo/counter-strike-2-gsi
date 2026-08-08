@@ -1,0 +1,64 @@
+.root {
+  position: absolute;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+  display: flex;
+  gap: 0.4375rem;
+  align-items: center;
+  padding: 0.375rem 0.625rem;
+  background: var(--panel-strong);
+  backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+
+  /* Fades out rather than unmounting, so a brief reconnect blip doesn't make
+   * the badge pop in and out. */
+  opacity: 1;
+  transition: opacity var(--t-ui) var(--ease);
+}
+
+.root[data-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* `--dot` is set by the status rules below, on `.root`. The default lives in
+ * the `var()` fallback rather than as a declaration here: a custom property
+ * declared on this element would beat the inherited one and pin the dot to
+ * grey no matter the status. */
+.dot {
+  inline-size: 0.4375rem;
+  block-size: 0.4375rem;
+  background: var(--dot, var(--text-faint));
+  border-radius: 50%;
+}
+
+.root[data-status="connecting"] {
+  --dot: var(--warn);
+}
+
+.root[data-status="connecting"] .dot {
+  animation: blink 900ms var(--ease) infinite;
+}
+
+.root[data-status="connected"] {
+  --dot: var(--good);
+}
+
+.root[data-status="disconnected"] {
+  --dot: var(--danger);
+}
+
+.label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}

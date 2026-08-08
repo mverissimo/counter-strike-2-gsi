@@ -1,0 +1,62 @@
+.track {
+  position: relative;
+  block-size: var(--bar-height, 0.375rem);
+  inline-size: 100%;
+  overflow: hidden;
+  background: rgb(255 255 255 / 10%);
+  border-radius: 999px;
+}
+
+.fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+
+  /* `--pct` is written by React as a 0-1 number; everything visual about it is
+   * decided here. */
+  inline-size: calc(var(--pct, 0) * 100%);
+  background: var(--bar-colour, var(--good));
+  border-radius: inherit;
+  transition:
+    inline-size var(--t-value) linear,
+    background-color var(--t-ui) var(--ease);
+}
+
+/* Health recolours as it drops. The thresholds mirror `healthState()` in
+ * src/lib/derive.ts — that function decides the bucket, this decides how the
+ * bucket looks. */
+.track[data-tone="health"] {
+  --bar-colour: var(--good);
+}
+
+.track[data-tone="health"][data-state="low"] {
+  --bar-colour: var(--warn);
+}
+
+.track[data-tone="health"][data-state="critical"] {
+  --bar-colour: var(--danger);
+}
+
+.track[data-tone="health"][data-state="critical"] .fill {
+  animation: pulse 900ms var(--ease) infinite;
+}
+
+.track[data-tone="health"][data-state="dead"] {
+  --bar-colour: transparent;
+}
+
+.track[data-tone="armor"] {
+  --bar-colour: var(--ct);
+}
+
+/* Team-tinted variant: reads `--team` from whichever ancestor set
+ * `data-team`, so no component needs to know which side it is rendering. */
+.track[data-tone="team"] {
+  --bar-colour: var(--team);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}

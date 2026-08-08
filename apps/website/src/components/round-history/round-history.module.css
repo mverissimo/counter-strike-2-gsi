@@ -1,0 +1,58 @@
+.root {
+  display: flex;
+  gap: 0.1875rem;
+  align-items: center;
+  padding: 0.3125rem 0.5rem;
+  background: var(--panel);
+  backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.round {
+  position: relative;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  background: color-mix(in oklab, var(--team) 30%, transparent);
+  border-block-end: 2px solid var(--team);
+  border-radius: 2px;
+
+  /* The `::after` glyph is how the round was won: a bomb pip for
+   * bomb/defuse rounds, nothing for a straight elimination. Drawing it in CSS
+   * keeps the markup a flat list of `data-` attributes. */
+  &[data-how="bomb"]::after,
+  &[data-how="defuse"]::after {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    font-size: 0.5rem;
+    line-height: 1;
+    color: var(--text);
+    place-items: center;
+    content: "";
+  }
+
+  &[data-how="bomb"]::after {
+    inline-size: 0.25rem;
+    block-size: 0.25rem;
+    margin: auto;
+    background: var(--bomb);
+    border-radius: 50%;
+  }
+
+  &[data-how="defuse"]::after {
+    inline-size: 0.25rem;
+    block-size: 0.25rem;
+    margin: auto;
+    background: var(--ct);
+    border-radius: 50%;
+  }
+}
+
+/* Halftime gap — teams swap sides, and the history should show where. */
+.break {
+  inline-size: 1px;
+  block-size: 0.75rem;
+  margin-inline: 0.25rem;
+  background: var(--hairline);
+}

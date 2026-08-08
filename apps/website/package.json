@@ -4,13 +4,35 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
+    "dev": "concurrently -k -n gsi,web -c cyan,magenta \"pnpm run dev:gsi\" \"pnpm run dev:web\"",
+    "dev:gsi": "bun --watch server/standalone.ts",
+    "dev:web": "vp dev",
     "build": "tsc && vp build",
-    "preview": "vp preview"
+    "preview": "vp preview",
+    "serve": "bun server/standalone.ts",
+    "mock": "bun scripts/mock-feed.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@counter-strike-2-gsi/client": "workspace:*",
+    "@counter-strike-2-gsi/handlers": "workspace:*",
+    "@counter-strike-2-gsi/server": "workspace:*",
+    "@counter-strike-2-gsi/types": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
-    "typescript": "~5.9.3",
+    "@testing-library/react": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "concurrently": "catalog:",
+    "happy-dom": "catalog:",
+    "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   }
 }

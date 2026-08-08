@@ -15,12 +15,12 @@ A TypeScript stack for [Counter-Strike 2 Game State Integration](https://develop
 
 ## Packages
 
-| Package                                               | What it does                                                                                                                                             |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@counter-strike-2-gsi/types`](packages/types)       | arktype schema for the raw GSI payload plus derived TypeScript types. Every event name (e.g. `"player:state:health"`) is auto-generated from the schema. |
-| [`@counter-strike-2-gsi/server`](packages/server)     | Transport-agnostic `GSI` manager: validates payloads, merges state, and emits typed events with configurable change-detection depth.                     |
-| [`@counter-strike-2-gsi/handlers`](packages/handlers) | HTTP ingress + SSE/WS egress adapters for **Node**, **Bun**, and **Hono**, wired to a `GSI` manager.                                                     |
-| [`@counter-strike-2-gsi/client`](packages/client)     | Browser SSE/WS clients with auto-reconnect, plus React hooks (`GSIProvider`, `useGSIEvent`, `useGSIEvents`, `useGSISelector`, `useGSIState`, …).         |
+| Package                                               | What it does                                                                                                                                                                                                             |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@counter-strike-2-gsi/types`](packages/types)       | arktype schema for the raw GSI payload plus derived TypeScript types. Every event name (e.g. `"player:state:health"`) is auto-generated from the schema. A `/derive` subpath adds readers for the payload's sharp edges. |
+| [`@counter-strike-2-gsi/server`](packages/server)     | Transport-agnostic `GSI` manager: validates payloads, merges state, and emits typed events with configurable change-detection depth.                                                                                     |
+| [`@counter-strike-2-gsi/handlers`](packages/handlers) | HTTP ingress + SSE/WS egress adapters for **Node**, **Bun**, and **Hono**, wired to a `GSI` manager.                                                                                                                     |
+| [`@counter-strike-2-gsi/client`](packages/client)     | Browser SSE/WS clients with auto-reconnect, plus React hooks (`GSIProvider`, `useGSIEvent`, `useGSIEvents`, `useGSISelector`, `useGSIState`, …).                                                                         |
 
 Data flows in one direction:
 
@@ -159,7 +159,7 @@ vp run -r build     # build all packages
 
 Per-package: `pnpm build`, `pnpm dev` (watch), `pnpm test`, `pnpm typecheck`.
 
-Repo layout: publishable code lives in [`packages/*`](packages); [`apps/website`](apps/website) is a Vite playground app (not yet wired to the client).
+Repo layout: publishable code lives in [`packages/*`](packages); [`apps/website`](apps/website) is a React stream overlay that wires all three packages together end to end — the fullest worked example in the repo, and it runs without CS2 via a mock feed. See its [README](apps/website/README.md).
 
 ## License
 
