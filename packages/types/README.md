@@ -33,6 +33,21 @@ Inferred from the schema, one per block:
 - `Block` / `BlockEventName` / `GranularEventName` — top-level block names vs. nested path events.
 - `PathValue<T, P>` — resolves the value type at a colon-separated path; used by the client hooks so template-literal keys like `` `allplayers:${string}:name` `` narrow to `string` instead of a wide union.
 
+## The `/derive` subpath
+
+```ts
+import { carriesBomb, heldWeapon, parseSeconds, players } from "@counter-strike-2-gsi/types/derive";
+```
+
+A handful of pure functions for the parts of the payload whose shape is easy to read wrong. They are a separate entry point, so the root export stays schema + types and nothing pulls in runtime code it didn't ask for.
+
+- `players(allplayers)` — `[steamid, player]` pairs, `custom` excluded, ordered by `observer_slot`. `custom` is roster-change bookkeeping rather than a player, so `Object.entries` yields an eleventh entry with no name, team or health; and key order is not stable between ticks, so payload order makes rows swap places at random.
+- `heldWeapon(weapons)` — the weapon in hand, matching `"active"` **and** `"reloading"`. CS2 flips the state for the duration of the reload animation, during which nothing reports `"active"` — match only that and the weapon vanishes from a HUD on every reload.
+- `carriesBomb(weapons)` — whether the player holds the C4. It is an ordinary `weapons` entry named `weapon_c4` whose `state` is irrelevant, and no other field identifies the carrier.
+- `parseSeconds(countdown)` — parses the string countdowns (`bomb.countdown`, `phase_countdowns.phase_ends_in`), returning `undefined` rather than `NaN` for absent or unparseable values.
+
+The bar for adding here: **can a test for it fail because the game disagrees with you?** If yes it is a rule about the schema and belongs in this package. If it can only fail because someone changed their mind — field selection, thresholds, formatting — it is a presentation choice and belongs in the consuming app.
+
 ## How event names are generated
 
 `LeafPaths<SchemaPayload>` walks the schema and produces a `{ path, type }` pair for every node, joining keys with `:`. Rules worth knowing:
