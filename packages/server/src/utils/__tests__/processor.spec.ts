@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+import { MAX_PATH_DEPTH } from "@counter-strike-2-gsi/types";
 import type { SchemaPayload, EventMap } from "@counter-strike-2-gsi/types";
 
 import microdiff from "microdiff";
@@ -236,7 +237,18 @@ describe("@server/utils: processor", () => {
       const emittedEvents = spy.mock.calls.map(([event]) => String(event));
 
       expect(emittedEvents).toContain("bomb");
-      expect(emittedEvents.some((e) => e.startsWith("bomb:"))).toBe(false);
+      // No granular sub-path event ("bomb:state", "bomb:player", ...) — the
+      // block appeared wholesale, so its CREATE is reported as one block
+      // event, matching how a whole-tree microdiff reports a single CREATE
+      // at the block root rather than per-field. "bomb:planted" is a
+      // legitimate exception: it's a derived event (computed independently
+      // of the granular diff, from `bomb.state`'s own before/after), not a
+      // diff path, and it correctly fires on this exact transition.
+      expect(emittedEvents).not.toContain("bomb:state");
+      expect(emittedEvents).not.toContain("bomb:player");
+      expect(emittedEvents).not.toContain("bomb:position");
+      expect(emittedEvents).not.toContain("bomb:countdown");
+      expect(emittedEvents).toContain("bomb:planted");
     });
 
     it("emits granular events using the full change path", () => {
@@ -314,6 +326,177 @@ describe("@server/utils: processor", () => {
 
       expect(listener).toHaveBeenCalledOnce();
       expect(listener).toHaveBeenCalledWith({ previous: undefined, current: [newId] });
+    });
+  });
+
+  // Every name reaching `emit` has to be one `LeafPaths<SchemaPayload>`
+  // generates, or the event is unsubscribable with types on: the compiler
+  // says "allplayers:joined", the runtime says "allplayers:custom:joined".
+  describe("granular() — event-name canonicalisation", () => {
+    const emittedNames = (spy: { mock: { calls: unknown[][] } }): string[] =>
+      spy.mock.calls.map((call) => String(call[0]));
+
+    it("never emits a name containing a flattened key", () => {
+      const spy = vi.spyOn(emitter, "emit");
+
+      current.allplayers = {
+        ...previous.allplayers,
+        custom: {
+          joined: ["76561198000000099"],
+          left: [],
+        },
+      } as SchemaPayload["allplayers"];
+
+      emitter.on("allplayers:76561198000000001:state:health" as keyof EventMap, vi.fn());
+      processor.granular(previous, current, emitter);
+
+      expect(emittedNames(spy).some((name) => name.includes(":custom"))).toBe(false);
+    });
+
+    it("does not flatten a 'custom' key found deeper than the block's direct child", () => {
+      const spy = vi.spyOn(emitter, "emit");
+
+      current.player = {
+        ...current.player!,
+        weapons: {
+          ...current.player!.weapons,
+          weapon_0: {
+            ...current.player!.weapons!.weapon_0!,
+            custom: "not-roster-bookkeeping",
+          },
+        },
+      } as unknown as SchemaPayload["player"];
+
+      emitter.on("player:weapons:weapon_0:name" as keyof EventMap, vi.fn());
+      processor.granular(previous, current, emitter);
+
+      // Unlike allplayers.custom — flattened because it's the block's direct
+      // child, exactly where the schema declares it — a "custom" key nested
+      // deeper is an ordinary path segment and must reach a name rather than
+      // being silently dropped by the flatten meant for roster bookkeeping.
+      expect(emittedNames(spy)).toContain("player:weapons:weapon_0:custom");
+    });
+
+    it("leaves allplayers:joined to derived() rather than emitting it twice", () => {
+      const spy = vi.spyOn(emitter, "emit");
+      const newId = "76561198000000099";
+
+      current.allplayers = {
+        ...previous.allplayers,
+        [newId]: {
+          ...previous.allplayers!["76561198000000001"]!,
+          steamid: newId,
+        },
+        custom: {
+          joined: [newId],
+          left: [],
+        },
+      } as SchemaPayload["allplayers"];
+
+      emitter.on("allplayers:76561198000000001:state:health" as keyof EventMap, vi.fn());
+      emitter.on("allplayers:joined", vi.fn());
+      processor.granular(previous, current, emitter);
+
+      const joins = emittedNames(spy).filter((name) => name === "allplayers:joined");
+
+      expect(joins).toHaveLength(1);
+    });
+
+    it("does not count the flattened 'custom' key as a player joining", () => {
+      const listener = vi.fn();
+
+      current.allplayers = {
+        ...previous.allplayers,
+        custom: {
+          joined: [],
+          left: ["76561198000000003"],
+        },
+      } as SchemaPayload["allplayers"];
+
+      emitter.on("allplayers:joined", listener);
+      processor.granular(previous, current, emitter);
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("truncates at an array instead of emitting a numeric index segment", () => {
+      const listener = vi.fn();
+
+      // Nothing in the schema types an array below a block today, but
+      // `validatePayload: false` and a future CS2 field both can produce one.
+      previous.grenades!["291"]!.flames = ["682.0, 1321.0, -85.0"] as never;
+      current.grenades!["291"]!.flames = ["700.0, 1340.0, -85.0"] as never;
+
+      emitter.on("grenades:291:flames" as keyof EventMap, listener);
+      processor.granular(previous, current, emitter);
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith({
+        previous: ["682.0, 1321.0, -85.0"],
+        current: ["700.0, 1340.0, -85.0"],
+      });
+    });
+
+    // `allplayers:<id>:weapons:<slot>:<field>` is already MAX_PATH_DEPTH
+    // segments, so anything nested below a weapon overruns the cap.
+    const withStickers = (state: SchemaPayload, steamid: string, stickers: object) => {
+      const weapons = state.allplayers![steamid]!.weapons!;
+
+      weapons["weapon_0"] = {
+        ...weapons["weapon_0"]!,
+        stickers,
+      } as never;
+    };
+
+    it("truncates a path deeper than MAX_PATH_DEPTH to its deepest named ancestor", () => {
+      const spy = vi.spyOn(emitter, "emit");
+      const steamid = "76561198000000001";
+
+      withStickers(previous, steamid, { slot_0: { name: "katowice" } });
+      withStickers(current, steamid, { slot_0: { name: "boston" } });
+
+      emitter.on(`allplayers:${steamid}:weapons:weapon_0:stickers` as keyof EventMap, vi.fn());
+      processor.granular(previous, current, emitter);
+
+      const granular = emittedNames(spy).filter((name) => name.startsWith("allplayers:"));
+
+      // The raw diff path was `<id>:weapons:weapon_0:stickers:slot_0:name`.
+      expect(granular).toEqual([`allplayers:${steamid}:weapons:weapon_0:stickers`]);
+      expect(granular.every((name) => name.split(":").length <= MAX_PATH_DEPTH)).toBe(true);
+    });
+
+    it("collapses several over-deep changes onto one truncated event", () => {
+      const listener = vi.fn();
+      const steamid = "76561198000000001";
+
+      withStickers(previous, steamid, {
+        slot_0: { name: "katowice" },
+        slot_1: { name: "cologne" },
+      });
+      withStickers(current, steamid, {
+        slot_0: { name: "boston" },
+        slot_1: { name: "berlin" },
+      });
+
+      emitter.on(`allplayers:${steamid}:weapons:weapon_0:stickers` as keyof EventMap, listener);
+      processor.granular(previous, current, emitter);
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener.mock.calls[0]![0]).toEqual({
+        previous: { slot_0: { name: "katowice" }, slot_1: { name: "cologne" } },
+        current: { slot_0: { name: "boston" }, slot_1: { name: "berlin" } },
+      });
+    });
+
+    it("still emits exact deltas for paths that need no truncation", () => {
+      const listener = vi.fn();
+
+      current.player!.state!.health = 67;
+
+      emitter.on("player:state:health", listener);
+      processor.granular(previous, current, emitter);
+
+      expect(listener).toHaveBeenCalledWith({ previous: 100, current: 67 });
     });
   });
 

@@ -121,4 +121,129 @@ describe("createWSCore", () => {
 
     session.unsubscribe();
   });
+
+  describe("backpressure", () => {
+    /** A writer whose every frame parks until the test releases it. */
+    function createStalledWriter() {
+      const gates: Array<() => void> = [];
+      let accepted = 0;
+
+      const writer: WSWriter = {
+        send() {
+          accepted++;
+
+          return new Promise<void>((resolve) => gates.push(resolve));
+        },
+        close() {},
+      };
+
+      return {
+        writer,
+        async drain() {
+          while (gates.length > 0) {
+            gates.splice(0).forEach((resolve) => resolve());
+
+            await flush();
+          }
+        },
+        get accepted() {
+          return accepted;
+        },
+      };
+    }
+
+    it("drops frames past maxPendingWrites instead of queueing them", async () => {
+      const { fake, manager } = createFakeManager();
+      const onBackpressure = vi.fn();
+      const core = createWSCore({
+        manager,
+        sendInitialState: false,
+        maxPendingWrites: 3,
+        onBackpressure,
+        logger: silent,
+      });
+
+      const stalled = createStalledWriter();
+      const session = await core.connect(stalled.writer);
+
+      for (let i = 0; i < 20; i++) {
+        fake.emit("update", { round: { phase: "live" } });
+      }
+
+      await flush();
+
+      expect(onBackpressure).toHaveBeenCalledTimes(17);
+
+      await stalled.drain();
+
+      expect(stalled.accepted).toBe(3);
+
+      session.unsubscribe();
+    });
+
+    it("queues without limit when maxPendingWrites is 0", async () => {
+      const { fake, manager } = createFakeManager();
+      const onBackpressure = vi.fn();
+      const core = createWSCore({
+        manager,
+        sendInitialState: false,
+        maxPendingWrites: 0,
+        onBackpressure,
+        logger: silent,
+      });
+
+      const stalled = createStalledWriter();
+      const session = await core.connect(stalled.writer);
+
+      for (let i = 0; i < 20; i++) {
+        fake.emit("update", { round: { phase: "live" } });
+      }
+
+      await flush();
+
+      expect(onBackpressure).not.toHaveBeenCalled();
+
+      await stalled.drain();
+
+      expect(stalled.accepted).toBe(20);
+
+      session.unsubscribe();
+    });
+
+    it("does not serialize a frame it is going to drop", async () => {
+      const { fake, manager } = createFakeManager();
+      const core = createWSCore({
+        manager,
+        sendInitialState: false,
+        maxPendingWrites: 1,
+        logger: silent,
+      });
+
+      const stalled = createStalledWriter();
+      const session = await core.connect(stalled.writer);
+
+      let serialized = 0;
+      const payload = {
+        get round() {
+          serialized++;
+
+          return { phase: "live" };
+        },
+      };
+
+      for (let i = 0; i < 10; i++) {
+        fake.emit("update", payload);
+      }
+
+      await flush();
+
+      // JSON.stringify runs after the limit check, so a saturated connection
+      // stops paying to encode state nobody will read.
+      expect(serialized).toBe(1);
+
+      await stalled.drain();
+
+      session.unsubscribe();
+    });
+  });
 });

@@ -19,6 +19,21 @@ function withPlayerHealth(hp: number) {
   return p;
 }
 
+function withPlayerKills(roundKills: number, roundKillhs: number) {
+  const p = clonePayload(payload);
+
+  p.player = {
+    ...p.player!,
+    state: {
+      ...p.player!.state!,
+      round_kills: roundKills,
+      round_killhs: roundKillhs,
+    },
+  };
+
+  return p;
+}
+
 function withExtraPlayer(steamid = "76561198000000099") {
   const p = clonePayload(payload);
 
@@ -682,6 +697,438 @@ describe("@server: GSI", () => {
       manager.update({ player: { state: { health: 999 } } });
 
       expect(manager.state.player?.state?.health).toBe(health);
+    });
+
+    it("emits 'validation' with the dropped blocks when a payload is salvaged", () => {
+      const manager = new GSI();
+      const listener = vi.fn();
+
+      manager.on("validation", listener);
+      manager.update({
+        round: { phase: "live" },
+        player: { state: { health: 999 } },
+      });
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith({
+        summary: expect.any(String),
+        dropped: ["player"],
+        discarded: false,
+      });
+      expect(manager.state.round).toEqual({ phase: "live" });
+    });
+
+    it("does not emit 'validation' for fully valid payloads", () => {
+      const manager = new GSI();
+      const listener = vi.fn();
+
+      manager.on("validation", listener);
+      manager.update(payload);
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("does not emit 'validation' in strict mode (throws and emits 'error' instead)", () => {
+      const manager = new GSI({ strictValidation: true });
+      const listener = vi.fn();
+
+      manager.on("validation", listener);
+      manager.on("error", () => {});
+
+      expect(() => manager.update({ player: { state: { health: 999 } } })).toThrow();
+      expect(listener).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("logger injection", () => {
+    beforeEach(() => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("routes validation warnings to the injected logger instead of console", () => {
+      const logger = { warn: vi.fn(), error: vi.fn() };
+      const manager = new GSI({ logger });
+
+      manager.update({ player: { state: { health: 999 } } });
+
+      expect(logger.warn).toHaveBeenCalledOnce();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it("routes failed updates to the injected logger instead of console", () => {
+      const logger = { warn: vi.fn(), error: vi.fn() };
+      const manager = new GSI({ logger });
+
+      manager.update("{broken json}");
+
+      expect(logger.error).toHaveBeenCalledOnce();
+      expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it("routes listener exceptions to the injected logger instead of console", () => {
+      const logger = { warn: vi.fn(), error: vi.fn() };
+      const manager = new GSI({ logger });
+
+      manager.on("update", () => {
+        throw new Error("listener boom");
+      });
+      manager.update(payload);
+
+      expect(logger.error).toHaveBeenCalledOnce();
+      expect(console.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("emitUpdateOnNoop: false", () => {
+    it("suppresses 'update' when an identical full payload arrives (heartbeat)", () => {
+      const manager = new GSI({ emitUpdateOnNoop: false });
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("update", listener);
+      manager.update(clonePayload(payload));
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("suppresses 'update' for an identical partial heartbeat", () => {
+      const manager = new GSI({ emitUpdateOnNoop: false });
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("update", listener);
+      manager.update({ round: manager.state.round });
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("keeps the same state reference across a no-op update", () => {
+      const manager = new GSI({ emitUpdateOnNoop: false });
+
+      manager.update(payload);
+
+      const before = manager.state;
+
+      manager.update(clonePayload(payload));
+
+      expect(manager.state).toBe(before);
+    });
+
+    it("still emits 'update' when something changed", () => {
+      const manager = new GSI({ emitUpdateOnNoop: false });
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("update", listener);
+      manager.update(withPlayerHealth(67));
+
+      expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it("still emits block and granular events on real changes", () => {
+      const manager = new GSI({ emitUpdateOnNoop: false });
+
+      manager.update(payload);
+
+      const blockSpy = vi.fn();
+      const granularSpy = vi.fn();
+
+      manager.on("player", blockSpy);
+      manager.on("player:state:health", granularSpy);
+      manager.update(withPlayerHealth(67));
+
+      expect(blockSpy).toHaveBeenCalledOnce();
+      expect(granularSpy).toHaveBeenCalledWith({ previous: 100, current: 67 });
+    });
+
+    it("reset() still emits 'update' even with suppression on", () => {
+      const manager = new GSI({ emitUpdateOnNoop: false });
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("update", listener);
+      manager.reset();
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith({});
+    });
+  });
+
+  describe("payload edge cases", () => {
+    it("allplayers: {} empties the roster and emits allplayers:left for everyone", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      const left = vi.fn();
+
+      manager.on("allplayers:left", left);
+      manager.update({ allplayers: {} });
+
+      expect(manager.state.allplayers).toEqual({});
+      expect(left).toHaveBeenCalledOnce();
+      expect([...left.mock.calls[0][0].current].sort((a, b) => a.localeCompare(b))).toEqual([
+        "76561198000000001",
+        "76561198000000002",
+        "76561198000000003",
+      ]);
+    });
+
+    it("allplayers.custom never reaches state or pollutes roster events", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      const joined = vi.fn();
+
+      manager.on("allplayers:joined", joined);
+
+      const p = clonePayload(payload);
+
+      p.allplayers = {
+        ...p.allplayers,
+        "76561198000000099": {
+          ...p.allplayers!["76561198000000002"]!,
+          steamid: "76561198000000099",
+          name: "NiKo",
+        },
+        custom: { joined: ["76561198000000099"], left: [] },
+      } as typeof p.allplayers;
+
+      manager.update(p);
+
+      expect(manager.state.allplayers).not.toHaveProperty("custom");
+      // If "custom" leaked into the roster, deriveEvents would report it as
+      // a second joined SteamID.
+      expect(joined).toHaveBeenCalledOnce();
+      expect(joined).toHaveBeenCalledWith({
+        previous: undefined,
+        current: ["76561198000000099"],
+      });
+    });
+
+    it("a player who leaves and reappears fires left then joined and restores state", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      const joined = vi.fn();
+      const left = vi.fn();
+
+      manager.on("allplayers:joined", joined);
+      manager.on("allplayers:left", left);
+
+      manager.update(withoutPlayer("76561198000000003"));
+
+      expect(left).toHaveBeenCalledWith({
+        previous: undefined,
+        current: ["76561198000000003"],
+      });
+      expect(joined).not.toHaveBeenCalled();
+
+      manager.update(clonePayload(payload));
+
+      expect(joined).toHaveBeenCalledWith({
+        previous: undefined,
+        current: ["76561198000000003"],
+      });
+      expect(manager.state.allplayers?.["76561198000000003"]).toBeDefined();
+    });
+  });
+
+  describe("derived events", () => {
+    it("fires round:ended in granular mode (default)", () => {
+      const manager = new GSI();
+
+      manager.update(payload); // round: live
+
+      const listener = vi.fn();
+
+      manager.on("round:ended", listener);
+
+      const p = clonePayload(payload);
+
+      p.round = { phase: "over", win_team: "CT" };
+      manager.update(p);
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith({
+        winner: "CT",
+        bomb: undefined,
+        round: payload.map!.round,
+      });
+    });
+
+    it("fires bomb:planted in block mode", () => {
+      const manager = new GSI({ changeDetection: "block" });
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("bomb:planted", listener);
+
+      const p = clonePayload(payload);
+
+      p.bomb = { state: "planted", player: "76561198000000003" };
+      manager.update(p);
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith({
+        player: "76561198000000003",
+        countdown: undefined,
+      });
+    });
+
+    it("fires player:killed in minimal mode", () => {
+      const manager = new GSI({ changeDetection: "minimal" });
+
+      manager.update(payload); // round_kills: 2
+
+      const listener = vi.fn();
+
+      manager.on("player:killed", listener);
+      manager.update(withPlayerKills(3, 2));
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith({
+        steamid: "76561198000000001",
+        name: "s1mple",
+        kills: 1,
+        headshots: 1,
+        round_kills: 3,
+      });
+    });
+
+    it("fires player:died when the observed player's health hits 0", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("player:died", listener);
+      manager.update(withPlayerHealth(0));
+
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith({
+        steamid: "76561198000000001",
+        name: "s1mple",
+      });
+    });
+
+    it("does not fire on the very first update (cold start)", () => {
+      const manager = new GSI();
+
+      const roundStarted = vi.fn();
+      const bombPlanted = vi.fn();
+
+      manager.on("round:started", roundStarted);
+      manager.on("bomb:planted", bombPlanted);
+
+      const p = clonePayload(payload);
+
+      p.bomb = { state: "planted" };
+      manager.update(p); // round already "live", bomb already "planted"
+
+      expect(roundStarted).not.toHaveBeenCalled();
+      expect(bombPlanted).not.toHaveBeenCalled();
+    });
+
+    it("does not fire when nothing crosses a threshold", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      const listeners = {
+        started: vi.fn(),
+        ended: vi.fn(),
+        planted: vi.fn(),
+        defused: vi.fn(),
+        exploded: vi.fn(),
+        died: vi.fn(),
+        killed: vi.fn(),
+      };
+
+      manager.on("round:started", listeners.started);
+      manager.on("round:ended", listeners.ended);
+      manager.on("bomb:planted", listeners.planted);
+      manager.on("bomb:defused", listeners.defused);
+      manager.on("bomb:exploded", listeners.exploded);
+      manager.on("player:died", listeners.died);
+      manager.on("player:killed", listeners.killed);
+
+      manager.update(withPlayerHealth(67)); // unrelated change
+
+      for (const listener of Object.values(listeners)) {
+        expect(listener).not.toHaveBeenCalled();
+      }
+    });
+
+    it("a lone derived-event listener does not trigger a granular diff of its block", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      manager.on("round:ended", vi.fn());
+
+      const mapSpy = vi.fn();
+
+      // If "round:ended" were mistaken for granular interest in "round", this
+      // would start receiving deep-diff-derived events it never asked for —
+      // block events fire on any content change, so this checks the block
+      // listener stays quiet on an update that only touches `map`.
+      manager.on("map", mapSpy);
+
+      const p = clonePayload(payload);
+
+      p.round = { phase: "over" };
+      manager.update(p);
+
+      expect(mapSpy).not.toHaveBeenCalled();
+    });
+
+    it("reset() does not fire derived events (nothing to transition into)", () => {
+      const manager = new GSI();
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("round:ended", listener);
+      manager.reset();
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("emitUpdateOnNoop: false does not suppress derived events on a real transition", () => {
+      const manager = new GSI({ emitUpdateOnNoop: false });
+
+      manager.update(payload);
+
+      const listener = vi.fn();
+
+      manager.on("bomb:exploded", listener);
+
+      const p = clonePayload(payload);
+
+      p.bomb = { state: "exploded", position: "-100.0, 200.0, 0.0" };
+      manager.update(p);
+
+      expect(listener).toHaveBeenCalledOnce();
     });
   });
 });

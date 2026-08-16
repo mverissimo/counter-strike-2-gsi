@@ -11,15 +11,21 @@
  * the schema-derived names line up with the ones the server actually emits.
  * `"allplayers:joined"`/`"allplayers:left"` are *computed* by the server from
  * the SteamID set difference between two states, not read out of the payload
- * (`@counter-strike-2-gsi/server`'s `Processor.joinLeft`), and they are
+ * (`@counter-strike-2-gsi/server`'s `deriveEvents`), and they are
  * declared by hand on `EventMap`. Flattening keeps the two definitions on the
  * same key instead of leaving a dead `"allplayers:custom:joined"` alongside
- * them — CS2 does send `allplayers.custom` when the roster changes, and
- * without the flatten a granular diff would emit that name too, splitting one
- * concept across two events. Drop the flatten only if the hand-declared
- * events on `EventMap` are renamed to match.
+ * them. The server enforces the same contract at runtime: its parser strips
+ * `allplayers.custom` before merging (like `previously`/`added`), so state
+ * never contains it, granular diffs never walk it, and the array indices its
+ * `left`/`joined` members would produce (`allplayers:custom:left:0`) — the
+ * only numeric-index paths the schema could generate — never reach an event
+ * name. Drop the flatten only if the hand-declared events on `EventMap` are
+ * renamed to match and the server-side strip is removed with it.
  */
-type FlattenedKeys = "custom";
+export const FLATTENED_KEYS = ["custom"] as const;
+
+/** Type-level mirror of {@link FLATTENED_KEYS}; the two cannot drift. */
+type FlattenedKeys = (typeof FLATTENED_KEYS)[number];
 
 /**
  * Maximum number of path segments {@link LeafPaths} and {@link PathValue}

@@ -3,6 +3,21 @@ import type { SchemaPayload } from "@counter-strike-2-gsi/types";
 
 import { ArkErrors } from "arktype";
 
+import type { GSILogger } from "../lib/logger";
+
+export interface ValidationIssue {
+  /** arktype's human-readable error summary. */
+  summary: string;
+  /** Top-level blocks that failed validation and were dropped. */
+  dropped: string[];
+  /**
+   * `true` when the payload *root* failed validation. Nothing is salvageable
+   * then, so `dropped` lists every block the payload carried and state is
+   * left completely untouched.
+   */
+  discarded: boolean;
+}
+
 interface ParserPayloadOptions {
   /**
    * When true, validation failures throw immediately.
@@ -18,10 +33,23 @@ interface ParserPayloadOptions {
    * @default true
    */
   validatePayload?: boolean;
+
+  /**
+   * Sink for the non-strict validation warning.
+   * @default console
+   */
+  logger?: Pick<GSILogger, "warn">;
+
+  /**
+   * Called when non-strict validation salvages a payload, with the summary
+   * and the exact blocks that were dropped. Never called in strict mode
+   * (which throws) or when validation is disabled.
+   */
+  onValidationIssue?: (issue: ValidationIssue) => void;
 }
 
 export function parsePayload(input: unknown, options: ParserPayloadOptions = {}): SchemaPayload {
-  const { strictValidation = false, validatePayload = true } = options;
+  const { strictValidation = false, validatePayload = true, logger = console } = options;
 
   let rawPayload: unknown;
 
@@ -57,9 +85,17 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
       throw new Error(`GSI validation failed:\n${result.summary}`);
     }
 
-    console.warn("[GSIManager] GSI payload validation warning:", result.summary);
+    logger.warn("[GSI] payload validation warning:", result.summary);
 
-    return sanitizePayload(dropInvalidBlocks(rawPayload as SchemaPayload, result));
+    const { kept, dropped, discarded } = dropInvalidBlocks(rawPayload as SchemaPayload, result);
+
+    options.onValidationIssue?.({
+      summary: result.summary,
+      dropped,
+      discarded,
+    });
+
+    return sanitizePayload(kept);
   }
 
   return sanitizePayload(result);
@@ -99,14 +135,21 @@ function isArkErrors(value: unknown): value is ArkErrors {
  * nothing to salvage there, so the update is dropped whole — an empty payload
  * merges as a no-op, leaving state untouched.
  */
-function dropInvalidBlocks(payload: SchemaPayload, errors: ArkErrors): SchemaPayload {
+function dropInvalidBlocks(
+  payload: SchemaPayload,
+  errors: ArkErrors,
+): { kept: SchemaPayload; dropped: string[]; discarded: boolean } {
   const invalid = new Set<string>();
 
   for (const error of errors) {
     const block = error.path[0];
 
     if (block === undefined) {
-      return {};
+      return {
+        kept: {},
+        dropped: Object.keys(payload),
+        discarded: true,
+      };
     }
 
     invalid.add(String(block));
@@ -120,7 +163,11 @@ function dropInvalidBlocks(payload: SchemaPayload, errors: ArkErrors): SchemaPay
     }
   }
 
-  return kept as SchemaPayload;
+  return {
+    kept: kept as SchemaPayload,
+    dropped: [...invalid],
+    discarded: false,
+  };
 }
 
 // `auth` is validated by the transport handler; the merged state is broadcast
@@ -133,15 +180,42 @@ function dropInvalidBlocks(payload: SchemaPayload, errors: ArkErrors): SchemaPay
 const STRIPPED_KEYS = ["auth", "previously", "added"] as const;
 
 function sanitizePayload(payload: SchemaPayload): SchemaPayload {
-  if (!payload || !STRIPPED_KEYS.some((key) => key in payload)) {
-    return payload;
+  let result = payload;
+
+  if (result && STRIPPED_KEYS.some((key) => key in result)) {
+    const rest = { ...result } as Record<string, unknown>;
+
+    for (const key of STRIPPED_KEYS) {
+      delete rest[key];
+    }
+
+    result = rest as SchemaPayload;
   }
 
-  const rest = { ...payload } as Record<string, unknown>;
+  // `allplayers.custom` is more CS2 roster bookkeeping, and letting it into
+  // state breaks the event contract twice over: derived roster events iterate
+  // `allplayers` keys as SteamIDs (a literal "custom" player would join), and
+  // a granular diff through it would emit names (`allplayers:custom:joined`,
+  // array indices like `...:left:0`) that `LeafPaths` deliberately flattens
+  // out of the type system. The manager computes `allplayers:joined`/`left`
+  // from the roster itself, so nothing is lost.
+  const allplayers = result?.allplayers;
 
-  for (const key of STRIPPED_KEYS) {
-    delete rest[key];
+  if (
+    allplayers !== null &&
+    typeof allplayers === "object" &&
+    !Array.isArray(allplayers) &&
+    "custom" in allplayers
+  ) {
+    const rest = { ...allplayers } as Record<string, unknown>;
+
+    delete rest.custom;
+
+    result = {
+      ...result,
+      allplayers: rest,
+    } as SchemaPayload;
   }
 
-  return rest as SchemaPayload;
+  return result;
 }

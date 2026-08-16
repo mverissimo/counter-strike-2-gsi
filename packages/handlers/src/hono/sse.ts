@@ -11,6 +11,14 @@ export function createSSEHandler(options: SSEOptions) {
   return (c: Context) => {
     const lastEventId = c.req.header("last-event-id");
 
+    const reservation = core.reserve();
+
+    if (!reservation) {
+      return c.json({ error: "Too many SSE connections" }, 503, {
+        "Retry-After": "5",
+      });
+    }
+
     return streamSSE(c, async (stream) => {
       const writer: SSEWriter = {
         async writeSSE(id, event, data) {
@@ -40,11 +48,22 @@ export function createSSEHandler(options: SSEOptions) {
         resolveDone();
       });
 
-      session = await core.connect(writer, lastEventId, (err) => {
-        console.error("[SSE Hono] Write error:", err);
+      try {
+        session = await core.connect(
+          writer,
+          lastEventId,
+          (err) => {
+            console.error("[SSE Hono] Write error:", err);
 
-        resolveDone();
-      });
+            resolveDone();
+          },
+          reservation,
+        );
+      } catch (err) {
+        console.error("[SSE Hono] Connect error:", err);
+
+        return;
+      }
 
       if (closed) {
         session.unsubscribe();

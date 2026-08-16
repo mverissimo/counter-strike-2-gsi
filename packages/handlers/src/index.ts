@@ -9,7 +9,14 @@
  * - `@counter-strike-2-gsi/handlers/hono` (requires the optional `hono` peer)
  */
 export type { GSIHandlerOptions, GSIServerOptions, SSEOptions, WSOptions } from "./core/types";
-export type { SSEWriter, SSESession, SSEWriteErrorHandler, SSECore } from "./core/sse";
+export type {
+  SSEWriter,
+  SSESession,
+  SSEWriteErrorHandler,
+  SSEConnectionReservation,
+  SSECore,
+} from "./core/sse";
+export { SSEConnectionLimitError } from "./core/sse";
 export type { WSWriter, WSSession, WSWriteErrorHandler, WSFrame, WSCore } from "./core/ws";
 export { classifyHandlerError, safeTokenEqual } from "./core/http";
 export type { HttpErrorResponse } from "./core/http";

@@ -1,5 +1,6 @@
 import type { EventMap, EventPayload } from "@counter-strike-2-gsi/types";
 import type { SSEOptions } from "./types";
+import { createBackpressureQueue } from "./backpressure";
 
 interface ReplayEvent<E extends keyof EventMap = keyof EventMap> {
   id: string;
@@ -21,12 +22,32 @@ export interface SSESession {
   unsubscribe: () => void;
 }
 
+/** A connection slot acquired before an adapter commits its SSE response. */
+export interface SSEConnectionReservation {
+  release(): void;
+}
+
 /**
  * Optional per-connection write error callback. Fires when writer
  * methods throw/reject — useful for observability and for adapters
  * that need to react to a dead connection.
  */
 export type SSEWriteErrorHandler = (error: unknown, context: "event" | "heartbeat") => void;
+
+/**
+ * Thrown by `connect` when `maxConnections` is already reached. Adapters catch
+ * it and answer `503` rather than opening a stream they cannot serve.
+ */
+export class SSEConnectionLimitError extends Error {
+  readonly limit: number;
+
+  constructor(limit: number) {
+    super(`SSE connection limit reached (${limit})`);
+
+    this.name = "SSEConnectionLimitError";
+    this.limit = limit;
+  }
+}
 
 interface Connection {
   writer: SSEWriter;
@@ -41,6 +62,9 @@ export function createSSECore(options: SSEOptions) {
     heartbeatMs = 30_000,
     maxReplayEvents = 50,
     maxReplayAgeMs = 60_000,
+    maxPendingWrites = 256,
+    maxConnections = 0,
+    onBackpressure,
     logger = console.log,
   } = options;
 
@@ -127,6 +151,13 @@ export function createSSECore(options: SSEOptions) {
   const connections = new Set<Connection>();
   let managerUnsubs: Array<() => void> = [];
 
+  // Slots held by `connect` calls that have passed the limit check but have
+  // not finished replaying yet. Without it, N concurrent reconnects (what a
+  // server restart actually looks like) all see the same pre-connect count and
+  // sail past the cap together.
+  let reserved = 0;
+  const reservations = new Set<SSEConnectionReservation>();
+
   const subscribeToManager = () => {
     for (const eventName of events) {
       const handler = (payload: EventPayload<typeof eventName>) => {
@@ -153,6 +184,29 @@ export function createSSECore(options: SSEOptions) {
     managerUnsubs = [];
   };
 
+  /** Atomically holds a connection slot before an adapter commits a response. */
+  function reserve(): SSEConnectionReservation | undefined {
+    if (maxConnections > 0 && connections.size + reserved >= maxConnections) {
+      return undefined;
+    }
+
+    reserved++;
+
+    const reservation: SSEConnectionReservation = {
+      release() {
+        if (!reservations.delete(reservation)) {
+          return;
+        }
+
+        reserved--;
+      },
+    };
+
+    reservations.add(reservation);
+
+    return reservation;
+  }
+
   /**
    * Connect a client. The adapter provides the writer and Last-Event-ID;
    * the core handles replay, subscriptions, and heartbeat.
@@ -163,9 +217,30 @@ export function createSSECore(options: SSEOptions) {
    * snapshot implies and how to opt out of it.
    *
    * Returns a session with an `unsubscribe` callback the adapter
-   * must call on client disconnect.
+   * must call on client disconnect. Throws {@link SSEConnectionLimitError}
+   * when `maxConnections` is already reached. Adapters should pass a slot
+   * from {@link reserve} so admission happens before response headers commit.
    */
   async function connect(
+    writer: SSEWriter,
+    lastEventId?: string,
+    onWriteError?: SSEWriteErrorHandler,
+    reservation?: SSEConnectionReservation,
+  ): Promise<SSESession> {
+    const slot = reservation ?? reserve();
+
+    if (!slot || !reservations.has(slot)) {
+      throw new SSEConnectionLimitError(maxConnections);
+    }
+
+    try {
+      return await openConnection(writer, lastEventId, onWriteError);
+    } finally {
+      slot.release();
+    }
+  }
+
+  async function openConnection(
     writer: SSEWriter,
     lastEventId?: string,
     onWriteError?: SSEWriteErrorHandler,
@@ -175,26 +250,22 @@ export function createSSECore(options: SSEOptions) {
     logger(`[SSE] Client connected: ${clientId}`);
 
     let closed = false;
-    let writeChain: Promise<void> = Promise.resolve();
 
     // Serialize writes so async writers (e.g. Hono) can't interleave or
-    // drop events under 64 Hz GSI load. The chain never rejects — errors
-    // are surfaced via onWriteError.
-    const enqueueWrite = (fn: () => void | Promise<void>, context: "event" | "heartbeat") => {
-      writeChain = writeChain.then(async () => {
-        if (closed) {
-          return;
-        }
+    // drop events under 64 Hz GSI load, bounded by `maxPendingWrites` so a
+    // writer slower than the event rate can't retain an unbounded backlog
+    // for the life of the connection. See {@link createBackpressureQueue}.
+    const queue = createBackpressureQueue({
+      clientId,
+      maxPendingWrites,
+      logger,
+      onBackpressure,
+      label: "SSE",
+      unit: "writes",
+    });
 
-        try {
-          await fn();
-        } catch (err) {
-          onWriteError?.(err, context);
-        }
-      });
-
-      return writeChain;
-    };
+    const enqueueWrite = (fn: () => void | Promise<void>, context: "event" | "heartbeat") =>
+      queue.enqueue(fn, (err) => onWriteError?.(err, context));
 
     let replayed = 0;
 
@@ -250,6 +321,7 @@ export function createSSECore(options: SSEOptions) {
         if (closed) return;
 
         closed = true;
+        queue.close();
 
         logger(`[SSE] Client disconnected: ${clientId}`);
 
@@ -264,8 +336,21 @@ export function createSSECore(options: SSEOptions) {
     };
   }
 
+  /**
+   * Whether a further `connect` would be refused.
+   *
+   * Adapters check this *before* committing to a stream: SSE responses start
+   * with a `200` and event-stream headers, and once those are on the wire
+   * there is no status left to say "full" with. `connect` still throws on its
+   * own, so this racing under a burst costs a late rejection, not an
+   * over-admitted connection.
+   */
+  const isFull = () => maxConnections > 0 && connections.size + reserved >= maxConnections;
+
   return {
     connect,
+    reserve,
+    isFull,
   };
 }
 

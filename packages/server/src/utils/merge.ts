@@ -92,6 +92,16 @@ export function mergeDelta(
 
   let result = gsiMerger(current, delta) as SchemaPayload;
 
+  // CS2 never sends null — it can only come from a hand-built payload,
+  // typically with validation off. The merger writes it through as a value,
+  // which would leave e.g. `state.grenades === null` in the lap of typed
+  // consumers, so an explicit null is treated as "remove this key" instead.
+  for (const key of Object.keys(delta) as Array<keyof SchemaPayload>) {
+    if (delta[key] === null && key in result) {
+      result = omitKey(result, key);
+    }
+  }
+
   // Post-merge cleanup: remove keys that were omitted in the delta for
   // collection objects (sparse by construction in GSI — a missing key means
   // "no longer present", not "unchanged").
@@ -102,10 +112,19 @@ export function mergeDelta(
   // to. See the note on `pruneMissingKeys` for why in-place deletion is not
   // an option here.
   for (const key of COLLECTION_KEYS) {
-    const collection = result[key] as Record<string, unknown> | undefined;
-    const source = key in delta ? (delta[key] as Record<string, unknown> | undefined) : undefined;
+    const collection = result[key];
+    const source = key in delta ? delta[key] : undefined;
 
-    if (!collection || !source) {
+    // Both sides must be plain objects to prune: with `validatePayload:
+    // false`, either can be arbitrary garbage (a string, a number, an
+    // array), and none of those is a collection in any reading. `collection`
+    // is already the post-merge value here, so this guard is only about
+    // `pruneMissingKeys` itself misbehaving on a non-object `target` (a
+    // string's indices are visible to `for...in`, unlike an array's) — it
+    // does not, and cannot, undo whatever the deepmerge step above already
+    // did to a non-mergeable `source` value (e.g. an array replaces the
+    // field outright; see the "replaces ... wholesale" tests below).
+    if (!isPlainObject(collection) || !isPlainObject(source)) {
       continue;
     }
 
@@ -122,41 +141,39 @@ export function mergeDelta(
   // Weapons are also sparse. The active player's weapons live at
   // `player.weapons`; every player's weapons also live under
   // `allplayers[steamid].weapons`. A dropped weapon vanishes from the
-  // payload, so we have to mirror that in state.
-  if (delta.player?.weapons && result.player?.weapons) {
-    const weapons = result.player.weapons;
-    const pruned = pruneMissingKeys(weapons, delta.player.weapons);
+  // payload, so we have to mirror that in state — see {@link pruneWeaponsField}
+  // for the shared `{}`/`null`/absent semantics both entries follow.
+  const playerDelta: unknown = delta.player;
 
-    if (pruned !== weapons) {
+  if (isPlainObject(playerDelta) && isPlainObject(result.player)) {
+    const nextPlayer = pruneWeaponsField(result.player, playerDelta);
+
+    if (nextPlayer !== result.player) {
       result = {
         ...result,
-        player: {
-          ...result.player,
-          weapons: pruned,
-        },
+        player: nextPlayer,
       };
     }
   }
 
   // Roster pruning above already ran, so this only walks players that
   // survived the delta.
-  if (delta.allplayers && result.allplayers) {
+  if (isPlainObject(delta.allplayers) && isPlainObject(result.allplayers)) {
     const original = result.allplayers;
 
     let players = original;
 
     for (const steamid of Object.keys(original)) {
-      const player = players[steamid];
-      const weapons = player?.weapons;
-      const deltaWeapons = delta.allplayers[steamid]?.weapons;
+      const player: unknown = players[steamid];
+      const entryDelta: unknown = delta.allplayers[steamid];
 
-      if (!weapons || !deltaWeapons) {
+      if (!isPlainObject(player) || !isPlainObject(entryDelta)) {
         continue;
       }
 
-      const pruned = pruneMissingKeys(weapons, deltaWeapons);
+      const nextPlayer = pruneWeaponsField(player, entryDelta);
 
-      if (pruned === weapons) {
+      if (nextPlayer === player) {
         continue;
       }
 
@@ -166,10 +183,7 @@ export function mergeDelta(
         };
       }
 
-      players[steamid] = {
-        ...player,
-        weapons: pruned,
-      };
+      players[steamid] = nextPlayer as (typeof players)[string];
     }
 
     if (players !== original) {
@@ -181,6 +195,49 @@ export function mergeDelta(
   }
 
   return result;
+}
+
+/**
+ * Applies the shared weapons-removal contract to one entry that can carry a
+ * `weapons` map — the active `player` block, or a single `allplayers[steamid]`
+ * roster entry — and its corresponding delta entry: an absent `weapons` key
+ * means "unchanged", `null` removes the key entirely, and a plain object
+ * prunes to the keys it names (including emptying via `{}`).
+ *
+ * Returns `entry` by reference when nothing changes, so callers can use
+ * identity to decide whether their own parent needs rebuilding.
+ */
+function pruneWeaponsField<T extends Record<string, unknown>>(
+  entry: T,
+  entryDelta: Record<string, unknown>,
+): T {
+  if (!("weapons" in entryDelta)) {
+    return entry;
+  }
+
+  const deltaWeapons = entryDelta.weapons;
+
+  if (deltaWeapons === null) {
+    return "weapons" in entry ? omitKey(entry, "weapons") : entry;
+  }
+
+  if (isPlainObject(deltaWeapons) && isPlainObject(entry.weapons)) {
+    const weapons = entry.weapons;
+    const pruned = pruneMissingKeys(weapons, deltaWeapons);
+
+    return pruned === weapons ? entry : ({ ...entry, weapons: pruned } as T);
+  }
+
+  return entry;
+}
+
+/** Shallow copy of `obj` without `key`. Never mutates the original. */
+function omitKey<T extends object>(obj: T, key: string): T {
+  const copy = { ...obj } as Record<string, unknown>;
+
+  delete copy[key];
+
+  return copy as T;
 }
 
 /**

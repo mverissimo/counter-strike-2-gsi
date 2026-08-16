@@ -1,5 +1,6 @@
 import type { EventPayload } from "@counter-strike-2-gsi/types";
 import type { WSOptions } from "./types";
+import { createBackpressureQueue } from "./backpressure";
 
 /**
  * Transport-agnostic bridge that WS adapters implement. Each method
@@ -30,7 +31,14 @@ export interface WSFrame<E extends string = string> {
 }
 
 export function createWSCore(options: WSOptions) {
-  const { manager, events = ["update"], sendInitialState = true, logger = console.log } = options;
+  const {
+    manager,
+    events = ["update"],
+    sendInitialState = true,
+    maxPendingWrites = 256,
+    onBackpressure,
+    logger = console.log,
+  } = options;
 
   let clientCounter = 0;
 
@@ -40,22 +48,27 @@ export function createWSCore(options: WSOptions) {
     logger(`[WS] Client connected: ${clientId}`);
 
     let closed = false;
-    let writeChain: Promise<void> = Promise.resolve();
+
+    // Bounded for the same reason as the SSE chain: a socket that reads
+    // slower than CS2 produces would otherwise retain one frame per tick for
+    // the life of the connection. See {@link createBackpressureQueue}.
+    const queue = createBackpressureQueue({
+      clientId,
+      maxPendingWrites,
+      logger,
+      onBackpressure,
+      label: "WS",
+      unit: "frames",
+    });
 
     const sendFrame = (event: string, data: unknown) => {
-      const frame = JSON.stringify({ event, data });
-
-      writeChain = writeChain.then(async () => {
-        if (closed) return;
-
-        try {
-          await writer.send(frame);
-        } catch (err) {
-          onWriteError?.(err);
-        }
-      });
-
-      return writeChain;
+      // Stringify inside the enqueued closure, not here: `enqueue` skips
+      // calling it at all once the queue is saturated, so a dropped frame
+      // never pays to serialize state nobody will read.
+      return queue.enqueue(
+        () => writer.send(JSON.stringify({ event, data })),
+        (err) => onWriteError?.(err),
+      );
     };
 
     if (sendInitialState) {
@@ -79,6 +92,7 @@ export function createWSCore(options: WSOptions) {
         }
 
         closed = true;
+        queue.close();
 
         logger(`[WS] Client disconnected: ${clientId}`);
 

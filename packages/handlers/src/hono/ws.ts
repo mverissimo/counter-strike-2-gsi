@@ -61,11 +61,45 @@ export function createHonoWSHandler(options: WSOptions, upgradeWebSocket: Upgrad
 
     return {
       async onOpen(_evt: Event, ws: WSContext) {
+        const bufferedAmount = () => {
+          const raw = ws.raw as
+            | {
+                bufferedAmount?: number;
+                getBufferedAmount?: () => number;
+              }
+            | undefined;
+
+          try {
+            if (typeof raw?.getBufferedAmount === "function") {
+              return raw.getBufferedAmount();
+            }
+
+            return typeof raw?.bufferedAmount === "number" ? raw.bufferedAmount : 0;
+          } catch {
+            return 0;
+          }
+        };
+
+        const waitForDrain = () =>
+          new Promise<void>((resolve) => {
+            const check = () => {
+              if (closed || bufferedAmount() === 0) {
+                resolve();
+              } else {
+                setTimeout(check, 5);
+              }
+            };
+
+            check();
+          });
+
         const writer: WSWriter = {
           send(data) {
-            try {
-              ws.send(data);
-            } catch {}
+            ws.send(data);
+
+            if (bufferedAmount() > 0) {
+              return waitForDrain();
+            }
           },
           close() {
             try {
