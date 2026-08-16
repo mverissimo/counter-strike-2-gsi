@@ -1,6 +1,6 @@
 {
   "name": "@counter-strike-2-gsi/handlers",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "HTTP, SSE, and WebSocket adapters (Bun, Node, Hono) for wiring a Counter-Strike 2 GSI manager to real servers.",
   "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
   "bugs": {

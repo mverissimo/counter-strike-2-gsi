@@ -1,5 +1,12 @@
 # @counter-strike-2-gsi/client
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [29e53ac]
+  - @counter-strike-2-gsi/types@0.2.0
+
 ## 0.2.0
 
 ### Minor Changes
