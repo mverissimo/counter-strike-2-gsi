@@ -41,9 +41,15 @@ export function createNodeWSHandler(options: WSOptions) {
   wss.on("connection", async (ws: WebSocket) => {
     const writer: WSWriter = {
       send(data) {
-        try {
-          ws.send(data);
-        } catch {}
+        return new Promise<void>((resolve, reject) => {
+          ws.send(data, (error) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        });
       },
       close() {
         try {

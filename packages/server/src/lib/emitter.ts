@@ -1,3 +1,5 @@
+import { defaultLogger, type GSILogger } from "./logger";
+
 type EventMap = Record<string, any>;
 type Listener<T> = (payload: T) => void;
 
@@ -11,7 +13,7 @@ export interface Emitter<Events extends EventMap = EventMap> {
   listenerCount<K extends keyof Events>(type: K): number;
 }
 
-export function createEmitter<Events extends EventMap>() {
+export function createEmitter<Events extends EventMap>(logger: GSILogger = defaultLogger) {
   const handlers = new Map<keyof Events, Array<Listener<any>>>();
 
   return {
@@ -81,7 +83,7 @@ export function createEmitter<Events extends EventMap>() {
         try {
           handler(payload);
         } catch (err) {
-          console.error(`[emitter] listener for "${String(type)}" threw:`, err);
+          logger.error(`[emitter] listener for "${String(type)}" threw:`, err);
         }
       }
     },

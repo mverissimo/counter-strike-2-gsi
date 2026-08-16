@@ -243,4 +243,175 @@ describe("@server/utils: merger", () => {
       expect(previous.grenades).toHaveProperty("291");
     });
   });
+
+  // A weapons delta has three distinct shapes: `{}` (player holds nothing),
+  // `null` (hand-built payloads with validation off), and an absent key
+  // (block sent without the weapons component — means "unchanged").
+  describe("weapons delta semantics", () => {
+    it("weapons: {} empties the active player's weapons", () => {
+      const result = mergeDelta(previous, {
+        player: { weapons: {} },
+      } as Partial<SchemaPayload>);
+
+      expect(result.player?.weapons).toEqual({});
+    });
+
+    it("weapons: null removes the weapons key from the active player", () => {
+      const result = mergeDelta(previous, {
+        player: { weapons: null },
+      } as unknown as Partial<SchemaPayload>);
+
+      expect(result.player).not.toHaveProperty("weapons");
+      expect(result.player?.name).toBe("s1mple");
+    });
+
+    it("a player delta without a weapons key leaves weapons untouched", () => {
+      const result = mergeDelta(previous, deltas.playerDamage);
+
+      expect(result.player?.weapons).toEqual(previous.player?.weapons);
+    });
+
+    it("allplayers entry weapons: {} empties that player's weapons only", () => {
+      const result = mergeDelta(previous, {
+        allplayers: {
+          "76561198000000001": { steamid: "76561198000000001", weapons: {} },
+          "76561198000000002": payload.allplayers?.["76561198000000002"],
+          "76561198000000003": payload.allplayers?.["76561198000000003"],
+        },
+      } as Partial<SchemaPayload>);
+
+      expect(result.allplayers?.["76561198000000001"]?.weapons).toEqual({});
+      expect(result.allplayers?.["76561198000000002"]?.weapons).toEqual(
+        previous.allplayers?.["76561198000000002"]?.weapons,
+      );
+    });
+
+    it("allplayers entry weapons: null removes that player's weapons only", () => {
+      const result = mergeDelta(previous, {
+        allplayers: {
+          "76561198000000001": { steamid: "76561198000000001", weapons: null },
+          "76561198000000002": payload.allplayers?.["76561198000000002"],
+          "76561198000000003": payload.allplayers?.["76561198000000003"],
+        },
+      } as unknown as Partial<SchemaPayload>);
+
+      expect(result.allplayers?.["76561198000000001"]).not.toHaveProperty("weapons");
+      expect(result.allplayers?.["76561198000000002"]?.weapons).toEqual(
+        previous.allplayers?.["76561198000000002"]?.weapons,
+      );
+    });
+
+    it("weapons removal never mutates the previous state", () => {
+      const before = clonePayload(previous);
+
+      mergeDelta(previous, {
+        player: { weapons: null },
+      } as unknown as Partial<SchemaPayload>);
+      mergeDelta(previous, {
+        player: { weapons: {} },
+      } as Partial<SchemaPayload>);
+
+      expect(previous).toEqual(before);
+    });
+  });
+
+  describe("explicit null blocks", () => {
+    it("grenades: null removes the grenades block from state", () => {
+      const result = mergeDelta(previous, {
+        grenades: null,
+      } as unknown as Partial<SchemaPayload>);
+
+      expect(result).not.toHaveProperty("grenades");
+      expect(result.player?.name).toBe("s1mple");
+    });
+
+    it("allplayers: null removes the roster block from state", () => {
+      const result = mergeDelta(previous, {
+        allplayers: null,
+      } as unknown as Partial<SchemaPayload>);
+
+      expect(result).not.toHaveProperty("allplayers");
+    });
+
+    it("null block removal does not mutate the previous state", () => {
+      const before = clonePayload(previous);
+
+      mergeDelta(previous, {
+        grenades: null,
+      } as unknown as Partial<SchemaPayload>);
+
+      expect(previous).toEqual(before);
+    });
+  });
+
+  // Only reachable with `validatePayload: false` — the schema rejects all of
+  // these shapes. The merge must not throw on them; pruning just steps aside.
+  describe("non-object garbage in sparse-collection slots", () => {
+    it("does not throw when a collection block is a primitive", () => {
+      expect(() =>
+        mergeDelta(previous, { grenades: "garbage" } as unknown as Partial<SchemaPayload>),
+      ).not.toThrow();
+      expect(() =>
+        mergeDelta(previous, { allplayers: 42 } as unknown as Partial<SchemaPayload>),
+      ).not.toThrow();
+    });
+
+    it("does not throw when player or weapons is a primitive", () => {
+      expect(() =>
+        mergeDelta(previous, { player: "garbage" } as unknown as Partial<SchemaPayload>),
+      ).not.toThrow();
+      expect(() =>
+        mergeDelta(previous, {
+          player: { weapons: "garbage" },
+        } as unknown as Partial<SchemaPayload>),
+      ).not.toThrow();
+    });
+
+    it("does not throw when an allplayers entry or its weapons is a primitive", () => {
+      expect(() =>
+        mergeDelta(previous, {
+          allplayers: {
+            "76561198000000001": "garbage",
+            "76561198000000002": payload.allplayers?.["76561198000000002"],
+            "76561198000000003": payload.allplayers?.["76561198000000003"],
+          },
+        } as unknown as Partial<SchemaPayload>),
+      ).not.toThrow();
+      expect(() =>
+        mergeDelta(previous, {
+          allplayers: {
+            "76561198000000001": { steamid: "76561198000000001", weapons: "garbage" },
+            "76561198000000002": payload.allplayers?.["76561198000000002"],
+            "76561198000000003": payload.allplayers?.["76561198000000003"],
+          },
+        } as unknown as Partial<SchemaPayload>),
+      ).not.toThrow();
+    });
+
+    // Only reachable with `validatePayload: false` — the schema types every
+    // collection slot as an object, never an array. The underlying deepmerge
+    // treats an array as a non-mergeable value (`isMergeableObject` rejects
+    // arrays) and replaces the target field with it wholesale, *before* the
+    // sparse-collection pruning step below ever runs — so the `isPlainObject`
+    // guard on that pruning step has no bearing on this outcome either way;
+    // it exists to stop `pruneMissingKeys` from misbehaving on other garbage
+    // shapes (e.g. a string, whose indices `for...in` *does* visit), not to
+    // preserve arrays specifically. Pinned so a future change to either the
+    // guard or the merge config doesn't silently swap this behavior.
+    it("replaces the collection wholesale when the delta value is an array", () => {
+      const result = mergeDelta(previous, {
+        grenades: [],
+      } as unknown as Partial<SchemaPayload>);
+
+      expect(result.grenades).toEqual([]);
+    });
+
+    it("replaces weapons wholesale when the delta value is an array", () => {
+      const result = mergeDelta(previous, {
+        player: { weapons: [] },
+      } as unknown as Partial<SchemaPayload>);
+
+      expect(result.player?.weapons).toEqual([]);
+    });
+  });
 });

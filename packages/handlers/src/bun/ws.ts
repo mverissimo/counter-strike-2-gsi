@@ -7,6 +7,8 @@ import type { WSOptions } from "../core/types";
 export interface WSData {
   session: WSSession | null;
   closedEarly: boolean;
+  /** @internal Pending sends waiting for Bun's `drain` callback. */
+  drainResolvers?: Array<() => void>;
 }
 
 /**
@@ -42,9 +44,17 @@ export function createBunWSHandler(options: WSOptions) {
     async open(ws: ServerWebSocket<WSData>) {
       const writer: WSWriter = {
         send(data) {
-          try {
-            ws.send(data);
-          } catch {}
+          const status = ws.send(data);
+
+          if (status === 0) {
+            throw new Error("Bun dropped the WebSocket frame");
+          }
+
+          if (status === -1) {
+            return new Promise<void>((resolve) => {
+              (ws.data.drainResolvers ??= []).push(resolve);
+            });
+          }
         },
         close() {
           try {
@@ -69,6 +79,8 @@ export function createBunWSHandler(options: WSOptions) {
       ws.data.session = session;
     },
     close(ws: ServerWebSocket<WSData>) {
+      ws.data.drainResolvers?.splice(0).forEach((resolve) => resolve());
+
       if (ws.data.session) {
         ws.data.session.unsubscribe();
         ws.data.session = null;
@@ -78,6 +90,9 @@ export function createBunWSHandler(options: WSOptions) {
     },
     message() {
       // incoming client messages are ignored — this is a one-way feed
+    },
+    drain(ws: ServerWebSocket<WSData>) {
+      ws.data.drainResolvers?.splice(0).forEach((resolve) => resolve());
     },
   };
 
@@ -96,6 +111,7 @@ export function createBunWSHandler(options: WSOptions) {
       data: {
         session: null,
         closedEarly: false,
+        drainResolvers: [],
       },
     });
 

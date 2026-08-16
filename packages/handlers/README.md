@@ -93,9 +93,9 @@ WS routes are only registered when you pass an `upgradeWebSocket` helper — inj
 | `sse`                            | `{}`                          | SSE options (below), minus `manager`.                                                                                                         |
 | `ws`                             | `{}`                          | WS options (below), minus `manager`.                                                                                                          |
 
-**SSE options:** `events` (which `EventMap` events to forward, default `["update"]`), `sendInitialState` (`boolean | "only-if-no-replay"`, default `true` — see [replay vs. initial state](#replay-vs-initial-state)), `heartbeatMs` (comment ping, default `30_000`), `maxReplayEvents` (default `50`), `maxReplayAgeMs` (default `60_000`), `logger` (default `console.log`).
+**SSE options:** `events` (which `EventMap` events to forward, default `["update"]`), `sendInitialState` (`boolean | "only-if-no-replay"`, default `true` — see [replay vs. initial state](#replay-vs-initial-state)), `heartbeatMs` (comment ping, default `30_000`), `maxReplayEvents` (default `50`), `maxReplayAgeMs` (default `60_000`), `maxPendingWrites` (default `256`), `maxConnections` (default `0`, unlimited), `onBackpressure` (default `undefined`), `logger` (default `console.log`) — see [backpressure](#backpressure-and-connection-limits).
 
-**WS options:** `events`, `sendInitialState`, `logger` — same semantics, no replay/heartbeat.
+**WS options:** `events`, `sendInitialState`, `maxPendingWrites`, `onBackpressure`, `logger` — same semantics, no replay/heartbeat and no connection limit.
 
 > Forwarding only `["update"]` sends the full state on every tick. For granular HUDs, list the specific events you need, e.g. `events: ["player:state:health", "round:phase"]`.
 
@@ -119,6 +119,16 @@ On reconnect the core writes in a fixed order: **buffered events newer than `Las
 | `"only-if-no-replay"` | Send it only when nothing was replayed, i.e. for genuinely new connections. Right for clients that fold events into a timeline. |
 
 A reconnect whose `Last-Event-ID` is already the newest buffered id replays nothing, so `"only-if-no-replay"` still resyncs it from state rather than leaving it with neither.
+
+### Backpressure and connection limits
+
+Writes are serialized per connection, which is what keeps async writers from interleaving — but it also means a client reading slower than CS2 produces (throttled mobile link, backgrounded tab, stalled proxy) turns that chain into a queue that only grows: 64 retained payloads per second, for as long as the socket stays open.
+
+`maxPendingWrites` (default `256`, roughly four seconds of 64 Hz traffic) bounds it, on **both** the SSE and WS cores. Past that many pending writes on a connection, further writes for **that connection only** are dropped until its queue fully drains; `onBackpressure({ clientId, pending, dropped })` fires for each one and the core logs once per episode. Other connections are unaffected, and a dropped frame is never serialized in the first place.
+
+Dropping is the right failure for this stream: every `"update"` carries the complete state, so a client that skips ticks is behind by milliseconds rather than desynced. Granular events _do_ lose information when dropped — raise the limit, or forward `"update"`, if that matters more than the ceiling. Set `0` to disable the cap and accept an unbounded queue.
+
+`maxConnections` (default `0`, unlimited) caps how many SSE clients the core will serve. Past it the adapter answers `503` with `Retry-After` instead of opening a stream it will fan every event out to; in the rare case a burst races the check, `connect` rejects with `SSEConnectionLimitError` (exported from the root entry). In-flight connects count toward the cap, so N simultaneous reconnects can't all slip through together.
 
 ## Ingress hardening
 

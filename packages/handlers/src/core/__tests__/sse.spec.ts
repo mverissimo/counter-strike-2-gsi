@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createSSECore } from "../sse";
+import { createSSECore, SSEConnectionLimitError } from "../sse";
 import type { SSEWriter } from "../sse";
 import { createFakeManager, flush } from "./helpers/fake-manager";
 
@@ -339,6 +339,297 @@ describe("createSSECore", () => {
 
       session.unsubscribe();
       sessionLate.unsubscribe();
+    });
+  });
+
+  // A writer slower than the event rate used to grow `writeChain` forever:
+  // one retained payload per tick, 64 per second, for the life of the socket.
+  describe("backpressure", () => {
+    /** A writer whose every write parks until the test releases it. */
+    function createStalledWriter() {
+      const gates: Array<() => void> = [];
+      let accepted = 0;
+
+      const writer: SSEWriter = {
+        writeSSE() {
+          accepted++;
+
+          return new Promise<void>((resolve) => gates.push(resolve));
+        },
+        writeComment() {
+          return new Promise<void>((resolve) => gates.push(resolve));
+        },
+      };
+
+      return {
+        writer,
+        /**
+         * Writes are serialized, so only one is ever parked at a time and the
+         * next appears only once its predecessor resolves. Releasing has to
+         * repeat until the chain stops producing gates.
+         */
+        async drain() {
+          while (gates.length > 0) {
+            gates.splice(0).forEach((resolve) => resolve());
+
+            await flush();
+          }
+        },
+        get accepted() {
+          return accepted;
+        },
+      };
+    }
+
+    it("drops writes past maxPendingWrites instead of queueing them", async () => {
+      const { fake, manager } = createFakeManager();
+      const onBackpressure = vi.fn();
+      const core = createSSECore({
+        manager,
+        sendInitialState: false,
+        maxPendingWrites: 3,
+        onBackpressure,
+        logger: silent,
+      });
+
+      const stalled = createStalledWriter();
+      const session = await core.connect(stalled.writer);
+
+      for (let i = 0; i < 20; i++) {
+        fake.emit("update", { round: { phase: "live" } });
+      }
+
+      await flush();
+
+      expect(onBackpressure).toHaveBeenCalledTimes(17);
+      expect(onBackpressure.mock.calls.at(-1)![0]).toMatchObject({
+        pending: 3,
+        dropped: 17,
+      });
+
+      await stalled.drain();
+
+      // The queue is bounded, so the client gets the 3 it had room for and
+      // skips the rest — not 20 frames retained in memory on its behalf.
+      expect(stalled.accepted).toBe(3);
+
+      session.unsubscribe();
+    });
+
+    it("accepts writes again once the queue drains", async () => {
+      const { fake, manager } = createFakeManager();
+      const core = createSSECore({
+        manager,
+        sendInitialState: false,
+        maxPendingWrites: 2,
+        logger: silent,
+      });
+
+      const stalled = createStalledWriter();
+      const session = await core.connect(stalled.writer);
+
+      for (let i = 0; i < 5; i++) {
+        fake.emit("update", { round: { phase: "live" } });
+      }
+
+      await flush();
+      await stalled.drain();
+
+      expect(stalled.accepted).toBe(2);
+
+      // Drained means back under the limit: the connection is not written off
+      // for the rest of its life just because it once fell behind.
+      fake.emit("update", { round: { phase: "over" } });
+
+      await flush();
+      await stalled.drain();
+
+      expect(stalled.accepted).toBe(3);
+
+      session.unsubscribe();
+    });
+
+    it("leaves other connections unaffected by one slow client", async () => {
+      const { fake, manager } = createFakeManager();
+      const core = createSSECore({
+        manager,
+        sendInitialState: false,
+        maxPendingWrites: 2,
+        logger: silent,
+      });
+
+      const stalled = createStalledWriter();
+      const healthy = createRecordingWriter();
+      const stalledSession = await core.connect(stalled.writer);
+      const healthySession = await core.connect(healthy.writer);
+
+      // One event per tick, as CS2 delivers them: the healthy connection
+      // drains between ticks and never approaches the limit, while the stalled
+      // one saturates immediately.
+      for (let i = 0; i < 10; i++) {
+        fake.emit("update", { round: { phase: "live" } });
+
+        await flush();
+      }
+
+      expect(healthy.writes).toHaveLength(10);
+      expect(stalled.accepted).toBe(1);
+
+      await stalled.drain();
+
+      stalledSession.unsubscribe();
+      healthySession.unsubscribe();
+    });
+
+    it("queues without limit when maxPendingWrites is 0", async () => {
+      const { fake, manager } = createFakeManager();
+      const onBackpressure = vi.fn();
+      const core = createSSECore({
+        manager,
+        sendInitialState: false,
+        maxPendingWrites: 0,
+        onBackpressure,
+        logger: silent,
+      });
+
+      const stalled = createStalledWriter();
+      const session = await core.connect(stalled.writer);
+
+      for (let i = 0; i < 20; i++) {
+        fake.emit("update", { round: { phase: "live" } });
+      }
+
+      await flush();
+
+      expect(onBackpressure).not.toHaveBeenCalled();
+
+      await stalled.drain();
+
+      expect(stalled.accepted).toBe(20);
+
+      session.unsubscribe();
+    });
+  });
+
+  describe("connection limit", () => {
+    it("refuses connections past maxConnections", async () => {
+      const { manager } = createFakeManager();
+      const core = createSSECore({
+        manager,
+        sendInitialState: false,
+        maxConnections: 2,
+        logger: silent,
+      });
+
+      const first = await core.connect(createRecordingWriter().writer);
+      const second = await core.connect(createRecordingWriter().writer);
+
+      expect(core.isFull()).toBe(true);
+      await expect(core.connect(createRecordingWriter().writer)).rejects.toThrow(
+        SSEConnectionLimitError,
+      );
+
+      first.unsubscribe();
+
+      expect(core.isFull()).toBe(false);
+
+      const third = await core.connect(createRecordingWriter().writer);
+
+      second.unsubscribe();
+      third.unsubscribe();
+    });
+
+    it("counts in-flight connects so a burst cannot slip past the cap", async () => {
+      const { manager } = createFakeManager();
+      const core = createSSECore({
+        manager,
+        // Forces every connect to await a write before it registers, which is
+        // the window a plain `connections.size` check misses.
+        sendInitialState: true,
+        maxConnections: 1,
+        logger: silent,
+      });
+
+      const results = await Promise.allSettled([
+        core.connect(createRecordingWriter().writer),
+        core.connect(createRecordingWriter().writer),
+        core.connect(createRecordingWriter().writer),
+      ]);
+
+      const accepted = results.filter((r) => r.status === "fulfilled");
+
+      expect(accepted).toHaveLength(1);
+
+      for (const result of accepted) {
+        (
+          result as PromiseFulfilledResult<Awaited<ReturnType<typeof core.connect>>>
+        ).value.unsubscribe();
+      }
+    });
+
+    it("reserves a slot before an adapter commits its response", async () => {
+      const { manager } = createFakeManager();
+      const core = createSSECore({
+        manager,
+        sendInitialState: false,
+        maxConnections: 1,
+        logger: silent,
+      });
+
+      const reservation = core.reserve();
+
+      expect(reservation).toBeDefined();
+      expect(core.isFull()).toBe(true);
+      expect(core.reserve()).toBeUndefined();
+
+      const session = await core.connect(
+        createRecordingWriter().writer,
+        undefined,
+        undefined,
+        reservation,
+      );
+
+      expect(core.isFull()).toBe(true);
+
+      session.unsubscribe();
+
+      expect(core.isFull()).toBe(false);
+    });
+
+    it("releases an unused reservation explicitly", () => {
+      const { manager } = createFakeManager();
+      const core = createSSECore({
+        manager,
+        maxConnections: 1,
+        logger: silent,
+      });
+
+      const reservation = core.reserve();
+
+      expect(core.isFull()).toBe(true);
+
+      reservation?.release();
+
+      expect(core.isFull()).toBe(false);
+    });
+
+    it("is unlimited by default", async () => {
+      const { manager } = createFakeManager();
+      const core = createSSECore({
+        manager,
+        sendInitialState: false,
+        logger: silent,
+      });
+
+      const sessions = [];
+
+      for (let i = 0; i < 50; i++) {
+        sessions.push(await core.connect(createRecordingWriter().writer));
+      }
+
+      expect(core.isFull()).toBe(false);
+
+      sessions.forEach((session) => session.unsubscribe());
     });
   });
 

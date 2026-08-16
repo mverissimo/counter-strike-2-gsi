@@ -149,7 +149,7 @@ describe("@server/utils/: parsePayload", () => {
       parsePayload(invalidPayload);
 
       const warnArgs = (console.warn as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(warnArgs[0]).toContain("[GSIManager]");
+      expect(warnArgs[0]).toContain("[GSI]");
     });
 
     it("strict mode: throws with 'GSI validation failed'", () => {
@@ -187,6 +187,49 @@ describe("@server/utils/: parsePayload", () => {
       expect(result).toMatchObject({ player: { name: "s1mple" } });
     });
 
+    it("strips allplayers.custom (CS2 roster bookkeeping) without touching the roster", () => {
+      const gsiStyle = {
+        ...payload,
+        allplayers: {
+          ...payload.allplayers,
+          custom: { joined: ["76561198000000099"], left: [] },
+        },
+      } as unknown;
+
+      const result = parsePayload(gsiStyle) as { allplayers?: Record<string, unknown> };
+
+      expect(result.allplayers).not.toHaveProperty("custom");
+      expect(result.allplayers).toHaveProperty("76561198000000001");
+      expect(result.allplayers).toHaveProperty("76561198000000003");
+    });
+
+    it("does not mutate the input when stripping allplayers.custom", () => {
+      const input = {
+        allplayers: {
+          custom: { joined: [], left: [] },
+        },
+      };
+
+      parsePayload(input as unknown);
+
+      expect(input.allplayers).toHaveProperty("custom");
+    });
+
+    it("leaves malformed primitive allplayers values alone when validation is disabled", () => {
+      const result = parsePayload(
+        {
+          allplayers: "bad",
+          map: { round: 7 },
+        },
+        { validatePayload: false },
+      ) as unknown as Record<string, unknown>;
+
+      expect(result).toEqual({
+        allplayers: "bad",
+        map: { round: 7 },
+      });
+    });
+
     it("strips previously/added even on the non-strict validation fallback path", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -200,6 +243,66 @@ describe("@server/utils/: parsePayload", () => {
       expect(result).not.toHaveProperty("previously");
 
       warn.mockRestore();
+    });
+  });
+
+  describe("logger and validation callback", () => {
+    beforeEach(() => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("routes the validation warning to the injected logger instead of console", () => {
+      const logger = { warn: vi.fn() };
+
+      parsePayload({ player: { state: { health: 999 } } }, { logger });
+
+      expect(logger.warn).toHaveBeenCalledOnce();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it("reports the dropped blocks through onValidationIssue", () => {
+      const onValidationIssue = vi.fn();
+
+      const result = parsePayload(
+        {
+          round: { phase: "live" },
+          player: { state: { health: 999 } },
+        },
+        { onValidationIssue },
+      );
+
+      expect(onValidationIssue).toHaveBeenCalledOnce();
+      expect(onValidationIssue).toHaveBeenCalledWith({
+        summary: expect.any(String),
+        dropped: ["player"],
+        discarded: false,
+      });
+      expect(result).toEqual({ round: { phase: "live" } });
+    });
+
+    it("does not invoke onValidationIssue for valid payloads", () => {
+      const onValidationIssue = vi.fn();
+
+      parsePayload(payload, { onValidationIssue });
+
+      expect(onValidationIssue).not.toHaveBeenCalled();
+    });
+
+    it("does not invoke onValidationIssue in strict mode (throws first)", () => {
+      const onValidationIssue = vi.fn();
+
+      expect(() =>
+        parsePayload(
+          { player: { state: { health: 999 } } },
+          { strictValidation: true, onValidationIssue },
+        ),
+      ).toThrow("GSI validation failed");
+
+      expect(onValidationIssue).not.toHaveBeenCalled();
     });
   });
 });

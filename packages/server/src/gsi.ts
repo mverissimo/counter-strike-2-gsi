@@ -1,6 +1,9 @@
+import isEqual from "fast-deep-equal";
+
 import type { SchemaPayload, EventMap, EventPayload } from "@counter-strike-2-gsi/types";
 
-import { createEmitter } from "./lib/emitter";
+import { createEmitter, type Emitter } from "./lib/emitter";
+import { defaultLogger, type GSILogger } from "./lib/logger";
 import { parsePayload } from "./utils/parser";
 import { mergeDelta } from "./utils/merge";
 import { Processor } from "./utils/processor";
@@ -45,30 +48,65 @@ export interface GSIOptions {
    *   granular mode with few listeners is usually cheaper than block mode —
    *   pick 'block' for broad events, not for speed.
    *
-   * - `'minimal'`: Ultra-lightweight mode. Only emits `"update"`, errors, and
-   *   the allplayers:joined/left roster events. No block events, no granular events.
-   *   Best for background monitoring, logging, or extremely constrained environments.
+   * - `'minimal'`: Ultra-lightweight mode. Only emits `"update"`, errors, the
+   *   allplayers:joined/left roster events, and the derived events below.
+   *   No block events, no granular events. Best for background monitoring,
+   *   logging, or extremely constrained environments.
    *
-   * The `"update"` event and `"allplayers:joined"`/`"allplayers:left"` are
-   * emitted regardless of mode.
+   * The `"update"` event, `"allplayers:joined"`/`"allplayers:left"`, and the
+   * derived events (`"round:started"`, `"round:ended"`, `"bomb:planted"`,
+   * `"bomb:defused"`, `"bomb:exploded"`, `"player:died"`, `"player:killed"`)
+   * are emitted regardless of mode — see `deriveEvents` in
+   * `utils/derived.ts` for exactly what triggers each one.
    *
    * @default 'granular'
    */
   changeDetection?: "block" | "granular" | "minimal";
+
+  /**
+   * Where the manager's own diagnostics go: validation warnings in non-strict
+   * mode, failed updates, and listener exceptions. Defaults to `console`;
+   * inject your own to route them into structured logging or to silence them.
+   * @default console
+   */
+  logger?: GSILogger;
+
+  /**
+   * CS2 posts at up to 64 Hz even when nothing changed, and by default every
+   * accepted payload emits `"update"` — heartbeats included.
+   *
+   * Set to `false` to emit `"update"` only when the merged state actually
+   * differs from the previous one. Costs one deep-equal walk of the state per
+   * update — cheaper alternatives that pre-diff the incoming payload against
+   * the full state before merging are unsound here, since GSI payloads are
+   * routinely partial and a block absent from one tick is not a removal —
+   * and also skips the (empty) change-detection pass on no-ops, so
+   * downstream fan-out (SSE/WS) goes quiet between real changes.
+   *
+   * `reset()` always emits `"update"` — it is user-initiated, not a heartbeat.
+   * @default true
+   */
+  emitUpdateOnNoop?: boolean;
 }
 
 export class GSI {
-  private emitter = createEmitter<EventMap>();
+  private emitter: Emitter<EventMap>;
   private current: SchemaPayload = {};
   private readonly processor = new Processor();
-  private readonly options: GSIOptions;
+  private readonly options: Required<Omit<GSIOptions, "logger">>;
+  private readonly logger: GSILogger;
 
   constructor(options: GSIOptions = {}) {
+    this.logger = options.logger ?? defaultLogger;
+    this.emitter = createEmitter<EventMap>(this.logger);
+
+    // Resolved key by key rather than spread over defaults so an explicit
+    // `undefined` reads as "not provided" instead of erasing the default.
     this.options = {
-      strictValidation: false,
-      validatePayload: true,
-      changeDetection: "granular",
-      ...options,
+      strictValidation: options.strictValidation ?? false,
+      validatePayload: options.validatePayload ?? true,
+      changeDetection: options.changeDetection ?? "granular",
+      emitUpdateOnNoop: options.emitUpdateOnNoop ?? true,
     };
   }
 
@@ -103,22 +141,41 @@ export class GSI {
       const cleanPayload = parsePayload(raw, {
         strictValidation: this.options.strictValidation,
         validatePayload: this.options.validatePayload,
+        logger: this.logger,
+        onValidationIssue: (issue) => {
+          this.emitter.emit("validation", issue);
+        },
       });
 
       const previous = this.current;
 
-      // Skip mergeDelta's internal pre-diff: the processor detects changes
-      // per block below, so diffing here would walk the state twice on the
-      // 64 Hz hot path.
+      // Always skip mergeDelta's own pre-diff here: it walks `delta` against
+      // the *full* current state, so any top-level block genuinely absent
+      // from a partial payload — which is the normal shape of GSI traffic,
+      // not the exception — reads as a REMOVE and makes every partial
+      // update look like a change. Safe only for full-snapshot deltas, which
+      // GSI payloads generally aren't. The processor below detects changes
+      // per block on its own, so this would also just walk the state twice
+      // on the 64 Hz hot path even where it is safe.
       const newState = mergeDelta(previous, cleanPayload, true);
 
-      this.current = newState;
+      // With the pre-diff skipped, an identical payload still yields a fresh
+      // object (deepmerge allocates new objects along every touched path
+      // regardless of whether the values differ), so reference inequality
+      // alone can't prove a real change. Only when no-op suppression is on
+      // is the deep-equal walk worth paying for.
+      const changed =
+        newState !== previous && (this.options.emitUpdateOnNoop || !isEqual(previous, newState));
 
-      if (newState !== previous) {
-        this.emitChanges(previous, newState);
+      this.current = changed ? newState : previous;
+
+      if (changed) {
+        this.emitChanges(previous, this.current);
       }
 
-      this.emitter.emit("update", this.current);
+      if (changed || this.options.emitUpdateOnNoop) {
+        this.emitter.emit("update", this.current);
+      }
     } catch (err) {
       this.emitter.emit("error", {
         error: err as Error,
@@ -129,7 +186,7 @@ export class GSI {
         throw err;
       }
 
-      console.error("[GSI] Update failed:", err);
+      this.logger.error("[GSI] Update failed:", err);
     }
   }
 
@@ -145,9 +202,11 @@ export class GSI {
 
   /**
    * Routes a state transition to the processor for the configured
-   * change-detection mode. `"allplayers:joined"`/`"allplayers:left"` are
-   * emitted in every mode — `granular`/`block` fan them out themselves,
-   * `minimal` gets them from `joinLeft` directly.
+   * change-detection mode. The derived events — roster churn
+   * (`"allplayers:joined"`/`"allplayers:left"`) and match milestones
+   * (`"round:ended"`, `"bomb:planted"`, `"player:killed"`, …) — are emitted
+   * in every mode: `granular`/`block` fan them out themselves, `minimal`
+   * gets them from `derived` directly.
    */
   private emitChanges(previous: SchemaPayload, current: SchemaPayload) {
     const mode = this.options.changeDetection;
@@ -157,7 +216,7 @@ export class GSI {
     } else if (mode === "block") {
       this.processor.block(previous, current, this.emitter);
     } else {
-      this.processor.joinLeft(previous, current, this.emitter);
+      this.processor.derived(previous, current, this.emitter);
     }
   }
 }

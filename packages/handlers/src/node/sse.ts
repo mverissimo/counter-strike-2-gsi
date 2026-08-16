@@ -11,21 +11,71 @@ export function createSSEHandler(options: SSEOptions) {
     const lastEventIdHeader = req.headers["last-event-id"];
     const lastEventId = Array.isArray(lastEventIdHeader) ? lastEventIdHeader[0] : lastEventIdHeader;
 
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    });
+    const reservation = core.reserve();
 
-    res.write(": ok\n\n");
+    if (!reservation) {
+      res.writeHead(503, {
+        "Content-Type": "application/json",
+        "Retry-After": "5",
+      });
+      res.end(JSON.stringify({ error: "Too many SSE connections" }));
+
+      return;
+    }
+
+    try {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+
+      res.write(": ok\n\n");
+    } catch (err) {
+      reservation.release();
+
+      console.error("[SSE Node] Connect error:", err);
+
+      return;
+    }
+
+    const write = (chunk: string): void | Promise<void> => {
+      if (res.write(chunk)) {
+        return;
+      }
+
+      return new Promise<void>((resolve, reject) => {
+        const cleanupListeners = () => {
+          res.off("drain", onDrain);
+          res.off("error", onError);
+          res.off("close", onClose);
+        };
+        const onDrain = () => {
+          cleanupListeners();
+          resolve();
+        };
+        const onError = (error: Error) => {
+          cleanupListeners();
+          reject(error);
+        };
+        const onClose = () => {
+          cleanupListeners();
+          reject(new Error("SSE response closed before buffered data drained"));
+        };
+
+        res.once("drain", onDrain);
+        res.once("error", onError);
+        res.once("close", onClose);
+      });
+    };
 
     const writer: SSEWriter = {
       writeSSE(id, event, data) {
-        res.write(`id: ${id}\nevent: ${event}\ndata: ${data}\n\n`);
+        return write(`id: ${id}\nevent: ${event}\ndata: ${data}\n\n`);
       },
       writeComment(text) {
-        res.write(`: ${text}\n\n`);
+        return write(`: ${text}\n\n`);
       },
     };
 
@@ -50,11 +100,16 @@ export function createSSEHandler(options: SSEOptions) {
     res.on("close", cleanup);
 
     try {
-      session = await core.connect(writer, lastEventId, (err) => {
-        console.error("[SSE Node] Write error:", err);
+      session = await core.connect(
+        writer,
+        lastEventId,
+        (err) => {
+          console.error("[SSE Node] Write error:", err);
 
-        cleanup();
-      });
+          cleanup();
+        },
+        reservation,
+      );
 
       if (closed) session.unsubscribe();
     } catch (err) {
