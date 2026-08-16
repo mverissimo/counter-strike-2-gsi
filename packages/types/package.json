@@ -1,6 +1,6 @@
 {
   "name": "@counter-strike-2-gsi/types",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Arktype schema and derived TypeScript types for the Counter-Strike 2 GSI payload.",
   "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
   "bugs": {

@@ -1,6 +1,6 @@
 {
   "name": "@counter-strike-2-gsi/server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Transport-agnostic core for validating, merging, and dispatching Counter-Strike 2 GSI payloads.",
   "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
   "bugs": {
