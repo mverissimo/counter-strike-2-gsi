@@ -372,6 +372,44 @@ export function useGSIEvents<K extends keyof GeneratedEventMap>(
 }
 
 /**
+ * Subscribe to a derived or system event — anything in {@link EventMap} that
+ * isn't a schema leaf path, like `"player:killed"`, `"round:started"` or
+ * `"bomb:planted"` (see `@counter-strike-2-gsi/types` for the full list).
+ * These aren't diff paths: the server computes them from a state transition
+ * and fires them once, on the transition itself — there is no "current value"
+ * the way there is for `player:state:health`, which is exactly why
+ * {@link useGSIEvent} and {@link useGSIDelta} can't be used for them: both
+ * resolve their return type from the schema via {@link PathValue}, which
+ * assumes a real leaf path.
+ *
+ * Returns only the most recent occurrence — the store keeps one slot per
+ * event name, not a history. A kill feed or a log of recent rounds needs to
+ * accumulate this hook's value into its own list (e.g. append on change in a
+ * `useEffect`), the same way any "watch a stream, keep the last N" UI does.
+ *
+ * `"player:killed"` specifically only ever describes the *observed* player
+ * (see the type's own doc comment) — it has no killer/victim pair, so it
+ * cannot alone build a feed of who killed whom.
+ */
+export function useGSIDerivedEvent<K extends Exclude<keyof EventMap, keyof GeneratedEventMap>>(
+  event: K,
+): EventPayload<K> | undefined {
+  const store = useStore();
+
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribeEvent(event, listener),
+    [store, event],
+  );
+
+  const getSnapshot = useCallback(
+    () => store.getEvent(event) as EventPayload<K> | undefined,
+    [store, event],
+  );
+
+  return useSyncExternalStore(subscribe, getSnapshot, UNDEFINED_SERVER_SNAPSHOT);
+}
+
+/**
  * The last full `"update"` payload — the whole merged state as the server
  * sees it.
  *

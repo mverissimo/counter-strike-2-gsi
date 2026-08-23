@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import {
   GSIProvider,
   useGSIClient,
+  useGSIDerivedEvent,
   useGSIEvent,
   useGSIEvents,
   useGSIState,
@@ -113,6 +114,46 @@ describe("@client: useGSIEvents", () => {
 
     expect(MockEventSource.latest().listenerCount("player:state:health")).toBe(1);
     expect(MockEventSource.latest().listenerCount("round:phase")).toBe(1);
+  });
+});
+
+describe("@client: useGSIDerivedEvent", () => {
+  it("returns undefined before the event has fired", () => {
+    const { result } = renderHook(() => useGSIDerivedEvent("player:killed"), { wrapper });
+
+    expect(result.current).toBeUndefined();
+  });
+
+  it("returns the payload as-is — not delta-wrapped like a granular event", () => {
+    const { result } = renderHook(() => useGSIDerivedEvent("player:killed"), { wrapper });
+
+    emit("player:killed", {
+      steamid: "1",
+      name: "dev_null",
+      kills: 1,
+      headshots: 0,
+      round_kills: 2,
+    });
+
+    expect(result.current).toEqual({
+      steamid: "1",
+      name: "dev_null",
+      kills: 1,
+      headshots: 0,
+      round_kills: 2,
+    });
+  });
+
+  it("only reacts to the derived event it's subscribed to", () => {
+    const { result } = renderHook(() => useGSIDerivedEvent("bomb:planted"), { wrapper });
+
+    emit("player:killed", { kills: 1, headshots: 0, round_kills: 1 });
+
+    expect(result.current).toBeUndefined();
+
+    emit("bomb:planted", { player: "1", countdown: "40.0" });
+
+    expect(result.current).toEqual({ player: "1", countdown: "40.0" });
   });
 });
 

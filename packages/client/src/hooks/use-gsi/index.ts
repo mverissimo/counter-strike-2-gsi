@@ -2,6 +2,7 @@ export {
   GSIProvider,
   useGSIClient,
   useGSIDelta,
+  useGSIDerivedEvent,
   useGSIEvent,
   useGSIEvents,
   useGSISelector,
