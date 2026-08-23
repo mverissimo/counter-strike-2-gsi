@@ -5,6 +5,7 @@ const WIDGETS = [
   { id: "round-timer", label: "Round Timer", badge: "RT", accent: "#22d3ee" },
   { id: "minimap", label: "Minimap", badge: "MM", accent: "#22d3ee" },
   { id: "weapon-hud", label: "Weapon HUD", badge: "WH", accent: "#facc15" },
+  { id: "kill-feed", label: "Kill Feed", badge: "KF", accent: "#f472b6" },
 ];
 
 const PRIMITIVES = [
@@ -57,12 +58,14 @@ function badge(color: string, outline?: boolean): CSSProperties {
 
 /**
  * Two catalog groups, matching what's actually true today: "Widgets" are
- * the four composed catalog entries with a real `use*Spec()` hook behind
+ * the five composed catalog entries with a real `use*Spec()` hook behind
  * them; "Primitivos" are reference-only — they compose widgets, but this
  * editor has no drag-and-drop yet (see the mockup this was built from),
  * so listing them as clickable would promise something that doesn't work.
- * Kill Feed stays visible but inert: it documents a real gap (no derived-
- * event hook in `@counter-strike-2-gsi/client` yet) instead of hiding it.
+ *
+ * Kill Feed only shows the observed player's own kills — `player:killed`
+ * has no killer/victim pair — so its rows read "name — kill", never
+ * "name killed name". That's a real ceiling, not a placeholder.
  */
 export function CatalogSidebar(props: {
   activeRootId: string | undefined;
@@ -93,14 +96,6 @@ export function CatalogSidebar(props: {
             <span style={{ fontSize: 12.5, fontWeight: 600, color: "#dfe1e6" }}>{w.label}</span>
           </button>
         ))}
-
-        <div style={{ ...itemStyle(false, false), opacity: 0.5 }}>
-          <span style={badge("", true)}>KF</span>
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: "#dfe1e6" }}>Kill Feed</div>
-            <div style={{ fontSize: 10.5, color: "#565a66" }}>requer hook de eventos derivados</div>
-          </div>
-        </div>
       </div>
 
       <div style={{ ...sectionTitle, marginTop: 18 }}>Primitivos</div>

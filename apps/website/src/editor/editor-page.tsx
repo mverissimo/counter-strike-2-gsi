@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { KillFeedFromGSI, useKillFeedSpec } from "../components/kill-feed/kill-feed-from-gsi.tsx";
 import { MinimapFromGSI, useMinimapSpec } from "../components/minimap/minimap-from-gsi.tsx";
 import {
   PlayerCardFromGSI,
@@ -24,11 +25,12 @@ const WIDGET_LABELS: Record<string, string> = {
   "round-timer": "Round Timer",
   minimap: "Minimap",
   "weapon-hud": "Weapon HUD",
+  "kill-feed": "Kill Feed",
 };
 
 /**
  * The real editor built from the catalog + subtree-styling mechanism: a
- * catalog sidebar, a canvas of the four live widgets (each independently
+ * catalog sidebar, a canvas of the five live widgets (each independently
  * clickable down to its leaf nodes — see `SpecRenderer`/the primitives'
  * `onClick`/`selected` props), and a properties panel bound to whatever
  * node id is currently selected, wherever it lives in whichever widget's
@@ -45,11 +47,12 @@ export function EditorPage() {
   const roundTimer = useRoundTimerSpec();
   const weaponHud = useWeaponHudSpec();
   const minimap = useMinimapSpec();
+  const killFeed = useKillFeedSpec();
 
   let matchedRoot: SpecNode | undefined;
   let found: ReturnType<typeof findNode> | undefined;
 
-  for (const spec of [playerCard, roundTimer, weaponHud, minimap]) {
+  for (const spec of [playerCard, roundTimer, weaponHud, minimap, killFeed]) {
     if (!spec) continue;
 
     const result = findNode(spec, selectedId);
@@ -102,6 +105,11 @@ export function EditorPage() {
             onSelectNode={setSelectedId}
           />
           <WeaponHudFromGSI
+            overrides={overrides}
+            selectedId={selectedId}
+            onSelectNode={setSelectedId}
+          />
+          <KillFeedFromGSI
             overrides={overrides}
             selectedId={selectedId}
             onSelectNode={setSelectedId}
