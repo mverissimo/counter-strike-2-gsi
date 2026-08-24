@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Local persistence for the dev overrides store (scripts/overrides-store.ts) — a per-machine
+# development artifact, not something to ship or share via the repo.
+overrides.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

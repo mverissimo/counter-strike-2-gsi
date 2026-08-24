@@ -19,4 +19,5 @@ export const DEMO_EVENTS: Array<keyof EventMap> = [
   "player:state:health",
   "player:state:armor",
   "player:position",
+  "player:killed",
 ];

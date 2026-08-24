@@ -9,14 +9,28 @@ export interface StackProps {
   children?: ReactNode;
   onClick?: MouseEventHandler<HTMLDivElement>;
   selected?: boolean;
+  [dataAttr: `data-${string}`]: unknown;
 }
 
 export function Stack(props: StackProps) {
-  const { direction = "row", gap = 0, align, justify, style, children, onClick, selected } = props;
+  const {
+    direction = "row",
+    gap = 0,
+    align,
+    justify,
+    style,
+    children,
+    onClick,
+    selected,
+    ...dataAttrs
+  } = props;
 
   return (
     <div
       onClick={onClick}
+      data-part="stack"
+      {...dataAttrs}
+      {...(selected ? { "data-selected": "" } : {})}
       style={{
         display: "flex",
         flexDirection: direction,
@@ -24,8 +38,6 @@ export function Stack(props: StackProps) {
         alignItems: align,
         justifyContent: justify,
         cursor: onClick ? "pointer" : undefined,
-        outline: selected ? "2px solid #22d3ee" : undefined,
-        outlineOffset: selected ? 2 : undefined,
         ...style,
       }}
     >

@@ -8,21 +8,23 @@ export interface TextProps {
   style?: CSSProperties;
   onClick?: MouseEventHandler<HTMLSpanElement>;
   selected?: boolean;
+  [dataAttr: `data-${string}`]: unknown;
 }
 
 export function Text(props: TextProps) {
-  const { value, size = 12, weight = 500, color, style, onClick, selected } = props;
+  const { value, size = 12, weight = 500, color, style, onClick, selected, ...dataAttrs } = props;
 
   return (
     <span
       onClick={onClick}
+      data-part="text"
+      {...dataAttrs}
+      {...(selected ? { "data-selected": "" } : {})}
       style={{
         fontSize: size,
         fontWeight: weight,
         color,
         cursor: onClick ? "pointer" : undefined,
-        outline: selected ? "2px solid #22d3ee" : undefined,
-        outlineOffset: selected ? 2 : undefined,
         ...style,
       }}
     >

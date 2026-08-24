@@ -49,8 +49,10 @@ export function SpecRenderer(props: SpecRendererProps) {
       }
     : undefined;
 
+  const dataAttrs = toDataAttrs(node.data);
+
   return (
-    <Component {...node.props} style={node.style} {...interactive}>
+    <Component {...node.props} style={node.style} {...dataAttrs} {...interactive}>
       {node.children?.map((child) => (
         <SpecRenderer
           key={child.id}
@@ -61,4 +63,25 @@ export function SpecRenderer(props: SpecRendererProps) {
       ))}
     </Component>
   );
+}
+
+/**
+ * `node.data` uses author-friendly keys (`scope`, `part`, `mvp`) — this
+ * turns them into real `data-*` prop names and applies the
+ * present-when-true/omitted-when-false convention documented on
+ * `SpecNode.data`, so every primitive just spreads the result verbatim.
+ */
+function toDataAttrs(data: SpecNode["data"]): Record<string, string> {
+  const attrs: Record<string, string> = {};
+
+  if (!data) {
+    return attrs;
+  }
+
+  for (const [key, value] of Object.entries(data)) {
+    if (value === false || value === undefined) continue;
+    attrs[`data-${key}`] = value === true ? "" : String(value);
+  }
+
+  return attrs;
 }

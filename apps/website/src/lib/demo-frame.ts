@@ -32,15 +32,35 @@ function noise(seed: number): number {
   return x - Math.floor(x);
 }
 
-function makePlayer(entry: { name: string; team: "CT" | "T"; slot: number }, tick: number) {
+function makePlayer(
+  entry: { name: string; team: "CT" | "T"; slot: number },
+  tick: number,
+  t: number,
+) {
   const { name, team, slot } = entry;
   const seed = slot + (team === "CT" ? 0 : 5);
 
-  // Health drains as the round runs and resets with it, so the bars move
-  // without needing a scripted kill feed.
-  const wear = Math.max(0, Math.min(1, (tick / 10 - FREEZE_SECONDS) / LIVE_SECONDS));
+  // Both driven by `t` (seconds into the *current* 90s loop), not by the
+  // ever-increasing tick counter: a value driven by raw `tick` saturates
+  // after the demo's first lap and never moves again, which is exactly what
+  // `wear` used to do here. `t` wrapping every round is what makes health
+  // reset and kills start over each round without any special-casing.
+  const roundElapsed = Math.max(0, t - FREEZE_SECONDS);
+  const wear = Math.min(1, roundElapsed / LIVE_SECONDS);
   const drain = noise(seed) * 140 * wear;
   const health = Math.max(0, Math.round(100 - drain));
+
+  // A kill roughly every 12s of round time, capped by a per-player ceiling
+  // (1-3) so nobody racks up an implausible tally. Deterministic, like
+  // everything else here — a reload shows the same match, not a reshuffled
+  // one — and this is also what makes `player:killed` (see
+  // `packages/server/src/utils/derived.ts`) fire at all against the mock:
+  // it fires on `round_kills` increasing between two consecutive payloads,
+  // which a flat per-seed noise value (the old formula) never did.
+  const killCeiling = 1 + Math.floor(noise(seed + 10) * 3);
+  const roundKills = Math.min(killCeiling, Math.floor(roundElapsed / 12));
+  const roundHeadshots =
+    roundKills > 0 ? Math.min(roundKills, Math.round(roundKills * noise(seed + 11))) : 0;
 
   const weapons = team === "CT" ? CT_WEAPONS : T_WEAPONS;
   const clipMax = 30;
@@ -57,8 +77,8 @@ function makePlayer(entry: { name: string; team: "CT" | "T"; slot: number }, tic
       smoked: 0,
       burning: 0,
       money: 2400 + Math.round(noise(seed + 1) * 6000),
-      round_kills: Math.round(noise(seed + 2) * 2),
-      round_killhs: 0,
+      round_kills: roundKills,
+      round_killhs: roundHeadshots,
       equip_value: 4200,
     },
     match_stats: {
@@ -119,10 +139,10 @@ export function frame(tick: number): SchemaPayload {
   const allplayers: Record<string, ReturnType<typeof makePlayer>> = {};
 
   for (const entry of MOCK_ROSTER) {
-    allplayers[entry.steamid] = makePlayer(entry, tick);
+    allplayers[entry.steamid] = makePlayer(entry, tick, t);
   }
 
-  const observed = makePlayer(MOCK_OBSERVED, tick);
+  const observed = makePlayer(MOCK_OBSERVED, tick, t);
 
   return {
     provider: {

@@ -1,10 +1,10 @@
 import type { CSSProperties } from "react";
 
 const WIDGETS = [
+  { id: "match-info", label: "Match Info", badge: "MI", accent: "#a3e635" },
+  { id: "map-rotation", label: "Map Rotation", badge: "MR", accent: "#22d3ee" },
+  { id: "sponsors", label: "Sponsors", badge: "SP", accent: "#facc15" },
   { id: "player-card", label: "Player Card", badge: "PC", accent: "#60a5fa" },
-  { id: "round-timer", label: "Round Timer", badge: "RT", accent: "#22d3ee" },
-  { id: "minimap", label: "Minimap", badge: "MM", accent: "#22d3ee" },
-  { id: "weapon-hud", label: "Weapon HUD", badge: "WH", accent: "#facc15" },
   { id: "kill-feed", label: "Kill Feed", badge: "KF", accent: "#f472b6" },
 ];
 

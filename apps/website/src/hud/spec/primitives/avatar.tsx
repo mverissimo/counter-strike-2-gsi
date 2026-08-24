@@ -7,14 +7,26 @@ export interface AvatarProps {
   style?: CSSProperties;
   onClick?: MouseEventHandler<HTMLDivElement>;
   selected?: boolean;
+  [dataAttr: `data-${string}`]: unknown;
 }
 
 export function Avatar(props: AvatarProps) {
-  const { initial = "?", color = "#3a3f4d", size = 28, style, onClick, selected } = props;
+  const {
+    initial = "?",
+    color = "#3a3f4d",
+    size = 28,
+    style,
+    onClick,
+    selected,
+    ...dataAttrs
+  } = props;
 
   return (
     <div
       onClick={onClick}
+      data-part="avatar"
+      {...dataAttrs}
+      {...(selected ? { "data-selected": "" } : {})}
       style={{
         flex: "0 0 auto",
         width: size,
@@ -28,8 +40,6 @@ export function Avatar(props: AvatarProps) {
         fontWeight: 700,
         color: "#0a0b0f",
         cursor: onClick ? "pointer" : undefined,
-        outline: selected ? "2px solid #22d3ee" : undefined,
-        outlineOffset: selected ? 2 : undefined,
         ...style,
       }}
     >

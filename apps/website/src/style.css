@@ -10,3 +10,15 @@
 body {
   margin: 0;
 }
+
+/*
+ * HUD spec primitives (`hud/spec/primitives/*`) expose their state as
+ * data attributes, Ark UI-style (https://ark-ui.com/docs/guides/styling
+ * #data-attributes), rather than branching on props inline — `data-part`
+ * names which primitive rendered the element, `data-selected` is present
+ * only when the editor has that node selected.
+ */
+[data-part][data-selected] {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}

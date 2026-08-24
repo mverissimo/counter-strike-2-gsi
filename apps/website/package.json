@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vp dev",
     "mock": "node --experimental-strip-types scripts/mock-server.ts",
+    "mock:feed": "bun scripts/mock-feed.ts",
     "build": "tsc && vp build",
     "preview": "vp preview"
   },

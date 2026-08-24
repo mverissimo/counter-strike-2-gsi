@@ -1,23 +1,31 @@
-import { useGSIEvent } from "@counter-strike-2-gsi/client";
+import { useGSIState } from "@counter-strike-2-gsi/client";
 
 import { applyOverrides } from "../../hud/spec/apply-overrides.ts";
 import type { SpecOverrides } from "../../hud/spec/apply-overrides.ts";
 import { SpecRenderer } from "../../hud/spec/spec-renderer.tsx";
 import type { SpecNode } from "../../hud/spec/types.ts";
-import { minimapSpec } from "./minimap-spec.ts";
+import { mapRotationSpec } from "./map-rotation-spec.ts";
 
-export function useMinimapSpec(): SpecNode {
-  const position = useGSIEvent("player:position");
+export function useMapRotationSpec(): SpecNode | undefined {
+  const mapName = useGSIState()?.map?.name;
 
-  return minimapSpec({ position });
+  if (!mapName) {
+    return undefined;
+  }
+
+  return mapRotationSpec(mapName);
 }
 
-export function MinimapFromGSI(props: {
+export function MapRotationFromGSI(props: {
   overrides?: SpecOverrides;
   selectedId?: string;
   onSelectNode?: (id: string) => void;
 }) {
-  const spec = useMinimapSpec();
+  const spec = useMapRotationSpec();
+
+  if (!spec) {
+    return <p style={{ color: "#565a66", fontSize: 12 }}>Sem partida em andamento.</p>;
+  }
 
   return (
     <SpecRenderer

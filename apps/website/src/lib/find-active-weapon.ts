@@ -6,8 +6,9 @@ type Weapon = Weapons[string];
 /**
  * The schema has no single "active weapon" leaf path — `state: "active"`
  * lives per weapon-slot key (`weapon_0`, `weapon_1`, ...), so finding it
- * means scanning the whole `weapons` object. That's why this reads from
- * `useGSIState()` (the full payload) rather than a granular event.
+ * means scanning the whole `weapons` object. Shared under `lib/` (not a
+ * single widget's folder) because both the observed player and every
+ * roster entry in `match-info-from-gsi.tsx` need the same lookup.
  */
 export function findActiveWeapon(weapons: Weapons | undefined): Weapon | undefined {
   if (!weapons) {

@@ -11,6 +11,7 @@ export interface StatBarProps {
   style?: CSSProperties;
   onClick?: MouseEventHandler<HTMLDivElement>;
   selected?: boolean;
+  [dataAttr: `data-${string}`]: unknown;
 }
 
 export function StatBar(props: StatBarProps) {
@@ -25,6 +26,7 @@ export function StatBar(props: StatBarProps) {
     style,
     onClick,
     selected,
+    ...dataAttrs
   } = props;
 
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
@@ -32,13 +34,14 @@ export function StatBar(props: StatBarProps) {
   return (
     <div
       onClick={onClick}
+      data-part="stat-bar"
+      {...dataAttrs}
+      {...(selected ? { "data-selected": "" } : {})}
       style={{
         display: "flex",
         alignItems: "center",
         gap: 6,
         cursor: onClick ? "pointer" : undefined,
-        outline: selected ? "2px solid #22d3ee" : undefined,
-        outlineOffset: selected ? 2 : undefined,
         ...style,
       }}
     >
