@@ -1,6 +1,6 @@
 {
   "name": "@counter-strike-2-gsi/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Install and verify the native Counter-Strike 2 GSI configuration.",
   "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
   "bugs": {
