@@ -1,0 +1,39 @@
+{
+  "name": "@counter-strike-2-gsi/cli",
+  "version": "0.1.0",
+  "description": "Install and verify the native Counter-Strike 2 GSI configuration.",
+  "homepage": "https://github.com/mverissimo/counter-strike-2-gsi#readme",
+  "bugs": {
+    "url": "https://github.com/mverissimo/counter-strike-2-gsi/issues"
+  },
+  "license": "MIT",
+  "author": "Matheus Verissimo <mverissimu@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mverissimo/counter-strike-2-gsi.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "cs2-gsi": "./dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
