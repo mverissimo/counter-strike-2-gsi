@@ -61,6 +61,8 @@ Bun.serve({ port: 3000, fetch: gsi.handler, websocket: gsi.websocket });
 
 ### Hono
 
+Hono's public declarations use Web Platform types, including `BinaryType`. Include `"DOM"` in TypeScript's `compilerOptions.lib` when using this adapter, even on a Node host. The Node adapter does not require DOM libraries. Both standalone and combined factories preserve the adapter-specific `onError` request type (`IncomingMessage` for Node, `Request` for Bun/Hono).
+
 ```ts
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
@@ -88,6 +90,7 @@ WS routes are only registered when you pass an `upgradeWebSocket` helper — inj
 | -------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `manager`                        | — (required)                  | The `GSI` instance.                                                                                                                           |
 | `token`                          | `undefined`                   | Shared secret checked against `payload.auth.token` (constant-time compare). Requests with a bad token get `401`. When omitted, no auth check. |
+| `maxBodyBytes`                   | `1_048_576`                   | Positive integer byte limit for ingress, enforced while reading in every runtime. Oversized requests get `413`.                               |
 | `gsiPath` / `ssePath` / `wsPath` | `"/gsi"` / `"/sse"` / `"/ws"` | Route paths.                                                                                                                                  |
 | `onError`                        | `undefined`                   | `(error, req) => void`, called on ingress failures; `req` is typed per adapter.                                                               |
 | `sse`                            | `{}`                          | SSE options (below), minus `manager`.                                                                                                         |
@@ -97,7 +100,11 @@ WS routes are only registered when you pass an `upgradeWebSocket` helper — inj
 
 **WS options:** `events`, `sendInitialState`, `maxPendingWrites`, `onBackpressure`, `logger` — same semantics, no replay/heartbeat and no connection limit.
 
-> Forwarding only `["update"]` sends the full state on every tick. For granular HUDs, list the specific events you need, e.g. `events: ["player:state:health", "round:phase"]`.
+> Forwarding only `["update"]` sends the full state on every tick and supports all React value hooks. To reduce traffic, keep `sendInitialState: true` and list the paths or parent blocks you need, e.g. `events: ["player:state:health", "round:phase"]`. Exact transition hooks require the corresponding event to be forwarded.
+
+Ingress admission is shared across Node, Bun, and Hono: non-POST requests receive `405`, invalid JSON or payload roots receive `400`, bad authentication receives `401`, and bodies exceeding `maxBodyBytes` receive `413`. Strict manager validation raises `GSIPayloadError` and produces `400`; unexpected failures produce `500` regardless of their message wording. Runtime routing may reject a request before it reaches the ingress handler.
+
+Standalone ingress handlers only require `manager.update(payload)`. Streaming handlers require `manager.state` and the typed `manager.on(event, handler)` subscription method. Combined setup helpers require both capabilities; a normal `GSI` instance satisfies all of them. Structural test adapters do not need to inherit from `GSI` or cast to it.
 
 ## Protocol details
 

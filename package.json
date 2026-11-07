@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "ready": "vp fmt && vp lint && vp test && vp run -r build",
+    "typecheck": "tsc --noEmit && pnpm -r typecheck",
     "dev": "vp run website#dev",
     "prepare": "vp config",
     "clean": "rm -rf dist node_modules && rm -rf packages/*/dist packages/*/node_modules",
@@ -14,6 +15,8 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
     "vite-plus": "catalog:"
   },
   "engines": {

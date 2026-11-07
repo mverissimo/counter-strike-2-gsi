@@ -1,12 +1,18 @@
 import isEqual from "fast-deep-equal";
 
-import type { SchemaPayload, EventMap, EventPayload } from "@counter-strike-2-gsi/types";
+import type {
+  DeepReadonly,
+  SchemaPayload,
+  EventMap,
+  EventPayload,
+} from "@counter-strike-2-gsi/types";
 
 import { createEmitter, type Emitter } from "./lib/emitter";
 import { defaultLogger, type GSILogger } from "./lib/logger";
 import { parsePayload } from "./utils/parser";
 import { mergeDelta } from "./utils/merge";
 import { Processor } from "./utils/processor";
+import { freezeSnapshot } from "./utils/freeze";
 
 export interface GSIOptions {
   /**
@@ -91,7 +97,7 @@ export interface GSIOptions {
 
 export class GSI {
   private emitter: Emitter<EventMap>;
-  private current: SchemaPayload = {};
+  private current: SchemaPayload = freezeSnapshot({});
   private readonly processor = new Processor();
   private readonly options: Required<Omit<GSIOptions, "logger">>;
   private readonly logger: GSILogger;
@@ -132,7 +138,7 @@ export class GSI {
     return this.emitter.listenerCount(event);
   }
 
-  get state(): Readonly<SchemaPayload> {
+  get state(): DeepReadonly<SchemaPayload> {
     return this.current;
   }
 
@@ -167,7 +173,7 @@ export class GSI {
       const changed =
         newState !== previous && (this.options.emitUpdateOnNoop || !isEqual(previous, newState));
 
-      this.current = changed ? newState : previous;
+      this.current = changed ? freezeSnapshot(newState) : previous;
 
       if (changed) {
         this.emitChanges(previous, this.current);
@@ -193,7 +199,7 @@ export class GSI {
   reset() {
     const previous = this.current;
 
-    this.current = {};
+    this.current = freezeSnapshot({});
 
     this.emitChanges(previous, this.current);
 

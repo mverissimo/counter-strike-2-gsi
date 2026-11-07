@@ -1,10 +1,25 @@
-import type { GSI } from "@counter-strike-2-gsi/server";
-import type { EventMap } from "@counter-strike-2-gsi/types";
+import type {
+  DeepReadonly,
+  EventMap,
+  EventPayload,
+  SchemaPayload,
+} from "@counter-strike-2-gsi/types";
+
+interface IngressManager {
+  update(payload: unknown): void;
+}
+
+interface StreamManager {
+  readonly state: DeepReadonly<SchemaPayload>;
+  on<E extends keyof EventMap>(event: E, handler: (payload: EventPayload<E>) => void): () => void;
+}
 
 export interface GSIHandlerOptions<Req = unknown> {
-  manager: GSI;
+  manager: IngressManager;
 
   token?: string;
+
+  maxBodyBytes?: number;
 
   /**
    * Optional error handler. `req` is typed per-adapter.
@@ -15,7 +30,7 @@ export interface GSIHandlerOptions<Req = unknown> {
 }
 
 export interface SSEOptions {
-  manager: GSI;
+  manager: StreamManager;
 
   /**
    * Events to forward.
@@ -101,7 +116,7 @@ export interface SSEOptions {
 }
 
 export interface WSOptions {
-  manager: GSI;
+  manager: StreamManager;
 
   /**
    * Events to forward.
@@ -132,6 +147,7 @@ export interface WSOptions {
 }
 
 export interface GSIServerOptions<Req = unknown> extends GSIHandlerOptions<Req> {
+  manager: IngressManager & StreamManager;
   ws?: Omit<WSOptions, "manager">;
   sse?: Omit<SSEOptions, "manager">;
   ssePath?: string;

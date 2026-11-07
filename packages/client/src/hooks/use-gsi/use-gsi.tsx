@@ -10,163 +10,20 @@ import {
 import type { ReactNode } from "react";
 import type {
   Delta,
-  EventMap,
-  EventPayload,
   GeneratedEventMap,
   PathValue,
   SchemaPayload,
 } from "@counter-strike-2-gsi/types";
 
-import { createSSEClient } from "./clients/sse";
 import type { SSEError, SSEStatus } from "./clients/sse";
-import { createWSClient } from "./clients/ws";
 import type { WSError } from "./clients/ws";
+import { createStore, type CreateStoreOptions, type Store } from "./store";
 
 export type GSIStatus = SSEStatus;
 export type GSIError = SSEError | WSError;
 
 const UNDEFINED_SERVER_SNAPSHOT = () => undefined;
 const DISCONNECTED_SERVER_SNAPSHOT = () => "disconnected" as const;
-
-function isWSUrl(url: string) {
-  return url.startsWith("ws://") || url.startsWith("wss://");
-}
-
-interface Store {
-  getStatus: () => GSIStatus;
-  getEvent: <K extends keyof EventMap>(event: K) => EventPayload<K> | undefined;
-  subscribeStatus: (listener: () => void) => () => void;
-  subscribeEvent: <K extends keyof EventMap>(event: K, listener: () => void) => () => void;
-  connect: () => void;
-  disconnect: () => void;
-  clear: () => void;
-}
-
-interface CreateStoreOptions {
-  /**
-   * URL of the GSI endpoint. `ws://`/`wss://` selects the WebSocket
-   * transport; anything else uses SSE.
-   */
-  url: string;
-
-  onError?: (error: GSIError) => void;
-}
-
-function createStore(props: CreateStoreOptions): Store {
-  const { url, onError } = props;
-
-  // Last known value per event. Deliberately *not* wiped on disconnect: a
-  // HUD should keep showing the last frame through a reconnect blip rather
-  // than blanking out and flashing back. Consumers that need the distinction
-  // read it from `useGSIStatus`, and anything that must start from empty
-  // (map change, demo switch) calls `clear()`.
-  const snapshot: Partial<Record<keyof EventMap, unknown>> = {};
-  let status: GSIStatus = "disconnected";
-
-  const eventListeners = new Map<keyof EventMap, Set<() => void>>();
-  const statusListeners = new Set<() => void>();
-  const clientUnsubs = new Map<keyof EventMap, () => void>();
-
-  const factory = isWSUrl(url) ? createWSClient : createSSEClient;
-
-  const client = factory({
-    url,
-    onError,
-    onStatusChange(next) {
-      if (next === status) {
-        return;
-      }
-
-      status = next;
-
-      statusListeners.forEach((l) => l());
-    },
-  });
-
-  let refCount = 0;
-
-  const increase = () => {
-    if (refCount++ === 0) {
-      client.connect();
-    }
-  };
-
-  const decrease = () => {
-    if (--refCount === 0) {
-      client.disconnect();
-    }
-  };
-
-  function subscribeEvent<K extends keyof EventMap>(event: K, listener: () => void) {
-    let set = eventListeners.get(event);
-
-    if (!set) {
-      set = new Set();
-
-      eventListeners.set(event, set);
-
-      const unsub = client.subscribe(event, (data) => {
-        snapshot[event] = data;
-        eventListeners.get(event)?.forEach((l) => l());
-      });
-
-      clientUnsubs.set(event, unsub);
-    }
-
-    set.add(listener);
-
-    increase();
-
-    return () => {
-      set!.delete(listener);
-
-      if (set!.size === 0) {
-        eventListeners.delete(event);
-        clientUnsubs.get(event)?.();
-        clientUnsubs.delete(event);
-      }
-
-      decrease();
-    };
-  }
-
-  function subscribeStatus(listener: () => void) {
-    statusListeners.add(listener);
-
-    increase();
-
-    return () => {
-      statusListeners.delete(listener);
-
-      decrease();
-    };
-  }
-
-  function clear() {
-    const events = Object.keys(snapshot) as Array<keyof EventMap>;
-
-    for (const event of events) {
-      delete snapshot[event];
-    }
-
-    // Notify every event that had a value — subscribers to events that were
-    // never populated have nothing to re-read.
-    for (const event of events) {
-      eventListeners.get(event)?.forEach((l) => l());
-    }
-  }
-
-  return {
-    getStatus: () => status,
-    getEvent: <K extends keyof EventMap>(event: K) =>
-      snapshot[event] as EventPayload<K> | undefined,
-    subscribeStatus,
-    subscribeEvent,
-    connect: client.connect,
-    disconnect: client.disconnect,
-    clear,
-  };
-}
 
 const GSIContext = createContext<Store | null>(null);
 
@@ -191,7 +48,8 @@ export function GSIProvider(props: GSIProviderProps) {
   );
 
   useEffect(() => {
-    return () => store.disconnect();
+    store.mount();
+    return () => store.unmount();
   }, [store]);
 
   return <GSIContext.Provider value={store}>{children}</GSIContext.Provider>;
@@ -236,13 +94,14 @@ export function useGSISelector<K extends keyof GeneratedEventMap, T>(
   isEqualRef.current = isEqual;
 
   const subscribe = useCallback(
-    (listener: () => void) => store.subscribeEvent(event, listener),
+    (listener: () => void) => store.subscribeValue(event, listener),
     [store, event],
   );
 
   const getSnapshot = useCallback(() => {
-    const delta = store.getEvent(event) as GeneratedEventMap[K] | undefined;
-    const next = selectorRef.current(delta?.current);
+    const next = selectorRef.current(
+      store.getValue(event) as GeneratedEventMap[K]["current"] | undefined,
+    );
     const cache = cacheRef.current;
 
     if (cache.hasValue && isEqualRef.current(cache.value, next)) {
@@ -291,7 +150,14 @@ export function useGSIDelta<K extends keyof GeneratedEventMap>(
 export function useGSIEvent<K extends keyof GeneratedEventMap>(
   event: K,
 ): PathValue<SchemaPayload, K> | undefined {
-  return useGSIDelta(event)?.current;
+  const store = useStore();
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribeValue(event, listener),
+    [store, event],
+  );
+  const getSnapshot = useCallback(() => store.getValue(event), [store, event]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, UNDEFINED_SERVER_SNAPSHOT);
 }
 
 /**
@@ -322,19 +188,20 @@ export function useGSIEvents<K extends keyof GeneratedEventMap>(
 
   // The array literal is a fresh reference every render; its contents are
   // what decide whether anything has to be rebuilt.
-  const key = events.join(" ");
+  const key = events.join("\0");
   const eventsRef = useRef(events);
 
   eventsRef.current = events;
 
   const cacheRef = useRef<{
-    deltas: Array<unknown>;
+    key: string;
+    values: Array<unknown>;
     value: Result;
   } | null>(null);
 
   const subscribe = useCallback(
     (listener: () => void) => {
-      const unsubs = eventsRef.current.map((event) => store.subscribeEvent(event, listener));
+      const unsubs = eventsRef.current.map((event) => store.subscribeValue(event, listener));
 
       return () => unsubs.forEach((unsub) => unsub());
     },
@@ -343,11 +210,11 @@ export function useGSIEvents<K extends keyof GeneratedEventMap>(
 
   const getSnapshot = useCallback(() => {
     const list = eventsRef.current;
-    const deltas = list.map((event) => store.getEvent(event));
+    const values = list.map((event) => store.getValue(event));
     const cache = cacheRef.current;
 
-    if (cache && cache.deltas.length === deltas.length) {
-      const unchanged = deltas.every((delta, i) => delta === cache.deltas[i]);
+    if (cache && cache.key === key && cache.values.length === values.length) {
+      const unchanged = values.every((value, index) => Object.is(value, cache.values[index]));
 
       if (unchanged) {
         return cache.value;
@@ -357,11 +224,12 @@ export function useGSIEvents<K extends keyof GeneratedEventMap>(
     const value = {} as Result;
 
     list.forEach((event, i) => {
-      value[event] = (deltas[i] as Delta<PathValue<SchemaPayload, K>> | undefined)?.current;
+      value[event] = values[i] as PathValue<SchemaPayload, K> | undefined;
     });
 
     cacheRef.current = {
-      deltas,
+      key,
+      values,
       value,
     };
 

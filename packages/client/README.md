@@ -8,12 +8,12 @@ Browser-side consumers for a Counter-Strike 2 GSI stream served by [`@counter-st
 pnpm add @counter-strike-2-gsi/client react
 ```
 
-React is a peer dependency, but only the `use*`/`GSIProvider` exports need it — `createSSEClient` / `createWSClient` are plain functions usable anywhere.
+React is an optional peer dependency. Use `@counter-strike-2-gsi/client/react` for hooks and `@counter-strike-2-gsi/client/transport` for standalone clients that do not load React. The root entry keeps the existing combined exports for compatibility and requires React at runtime.
 
 ## React usage
 
 ```tsx
-import { GSIProvider, useGSIEvent, useGSIStatus } from "@counter-strike-2-gsi/client";
+import { GSIProvider, useGSIEvent, useGSIStatus } from "@counter-strike-2-gsi/client/react";
 
 function Hud() {
   const status = useGSIStatus(); // "connecting" | "connected" | "disconnected"
@@ -38,14 +38,16 @@ export function App() {
 }
 ```
 
-The transport is chosen from the URL scheme: `ws://` / `wss://` selects WebSocket, anything else uses SSE. The events a component subscribes to must be forwarded by the server (the handlers' `events` option, default `["update"]`).
+The transport is chosen from the URL scheme: `ws://` / `wss://` selects WebSocket, anything else uses SSE. Value hooks read from full `"update"` snapshots, so the handlers' default `events: ["update"]` works without forwarding granular events. The initial snapshot populates the HUD even when none of its values have changed.
+
+For a granular stream, keep `sendInitialState: true` and forward the paths or parent blocks your value hooks read. The store applies received deltas to its current values. Paths that are not forwarded retain their last known values until another full snapshot arrives. Transition hooks such as `useGSIDelta` require the exact event to be forwarded; snapshots never invent a transition.
 
 ### Hooks
 
 All event hooks are fully typed against the schema — event names autocomplete, and values narrow via `PathValue` (so `` `allplayers:${string}:name` `` gives `string | undefined`, not a wide union).
 
-- **`useGSIEvent(event)`** — the `current` value of an event. The go-to hook for HUD displays.
-- **`useGSIDelta(event)`** — the full `{ previous?, current }` delta. Use when you need transitions (kill feeds, phase changes).
+- **`useGSIEvent(event)`** — the current value at a schema path, hydrated from snapshots and updated by received deltas. The go-to hook for HUD displays.
+- **`useGSIDelta(event)`** — the last actual `{ previous?, current }` delta for that exact event. Use when you need transitions (kill feeds, phase changes). It remains `undefined` until that event arrives, even when a snapshot has populated the corresponding value.
 - **`useGSISelector(event, selector, isEqual?)`** — subscribe to a high-frequency event but re-render only when a projection of it changes. The selector reads through a ref (no memoization needed); `isEqual` defaults to `Object.is` — pass a shallow/deep comparator when selecting arrays or objects.
 
   ```tsx
@@ -56,7 +58,7 @@ All event hooks are fully typed against the schema — event names autocomplete,
   );
   ```
 
-- **`useGSIEvents(events)`** — several events at once, as one object keyed by event name. Saves a hook call per event when a component reads a handful of unrelated paths. The array is compared by content (pass an inline literal freely) and the returned object is referentially stable until one of the subscribed events fires, so it's safe as a `useMemo`/`useEffect` dependency.
+- **`useGSIEvents(events)`** — several current values at once, as one object keyed by event name. Saves a hook call per event when a component reads a handful of unrelated paths. The array is compared by content (pass an inline literal freely) and the returned object is referentially stable until one of the selected values changes, so it's safe as a `useMemo`/`useEffect` dependency.
 
   ```tsx
   const { "player:state:health": health, "round:phase": phase } = useGSIEvents([
@@ -71,14 +73,16 @@ All event hooks are fully typed against the schema — event names autocomplete,
 
 ### Connection lifecycle
 
-The provider creates one shared connection per `url`. It's ref-counted against live subscribers: the socket opens when the first hook subscribes, closes when the last unsubscribes, and closes on provider unmount. Use `useGSIClient()` if you want to hold it open across subscription gaps.
+The provider creates one shared connection per `url`. By default, it's ref-counted against live subscribers: the socket opens when the first hook subscribes and closes when the last unsubscribes. `useGSIClient().connect()` explicitly holds it open across subscription gaps. `disconnect()` pauses the connection even if subscribers remain or new ones mount; call `connect()` to resume. Provider unmount always closes the connection, including manually held connections. Changing `url` creates a fresh store.
 
 Cached event values **survive a disconnect** — a HUD holds its last frame through a reconnect blip instead of blanking out and flashing back. Read `useGSIStatus()` when you need to tell "current" from "last known". Call `clear()` from `useGSIClient()` when the retained values would be misleading rather than merely stale (switching servers, ending a match): it drops every cached value and re-renders the subscribers that had one, without tearing down the subscription.
 
 ## Standalone clients (no React)
 
+Install only the client package with `pnpm add @counter-strike-2-gsi/client`, then import the transport entry:
+
 ```ts
-import { createSSEClient, createWSClient } from "@counter-strike-2-gsi/client";
+import { createSSEClient, createWSClient } from "@counter-strike-2-gsi/client/transport";
 
 const client = createSSEClient({
   url: "http://localhost:3000/sse",
@@ -97,6 +101,10 @@ client.disconnect();
 ```
 
 Both clients share the same shape (`connect` / `disconnect` / `subscribe`) and options:
+
+Both clients decode JSON and require object payloads; WebSocket also checks the `{ event, data }` envelope. Malformed messages are dropped and reported through `onError` with `type: "parse"`; the connection remains usable. These are transport checks, not schema validation: clients expect events from a trusted GSI server, whose ingress parser validates against the canonical schema by default. Event-specific fields are not revalidated in the browser. Serialized remote errors are restored as `Error` instances.
+
+Payload and event types remain derived from the canonical schema in `@counter-strike-2-gsi/types`. With `skipLibCheck: false`, browser-only consumers may need Node ambient types because of transitive ArkType declarations; no separate payload model is maintained to work around that dependency issue.
 
 | Option                | Default      | Description                                                                        |
 | --------------------- | ------------ | ---------------------------------------------------------------------------------- |

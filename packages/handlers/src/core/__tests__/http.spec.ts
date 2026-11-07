@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GSIPayloadError } from "@counter-strike-2-gsi/server";
 
 import { classifyHandlerError, safeTokenEqual } from "../http";
 
@@ -22,11 +23,14 @@ describe("classifyHandlerError", () => {
     "GSI: Invalid or empty payload",
     "GSI validation failed:\nsomething",
   ])("classifies %j as 400", (message) => {
-    expect(classifyHandlerError(new Error(message)).status).toBe(400);
+    expect(classifyHandlerError(new GSIPayloadError(message)).status).toBe(400);
   });
 
   it("classifies unknown errors as 500", () => {
     expect(classifyHandlerError(new Error("database exploded")).status).toBe(500);
+    expect(classifyHandlerError(new Error("Internal validation cache is too large")).status).toBe(
+      500,
+    );
   });
 
   it("includes the error message outside production", () => {

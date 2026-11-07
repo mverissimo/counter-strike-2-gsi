@@ -454,7 +454,7 @@ describe("@server: GSI", () => {
       ).toThrow("GSI validation failed");
 
       expect(listener).toHaveBeenCalledOnce();
-      expect(listener.mock.calls[0][0].error.message).toContain("GSI validation failed");
+      expect(listener.mock.calls[0]?.[0].error.message).toContain("GSI validation failed");
     });
   });
 
@@ -880,11 +880,9 @@ describe("@server: GSI", () => {
 
       expect(manager.state.allplayers).toEqual({});
       expect(left).toHaveBeenCalledOnce();
-      expect([...left.mock.calls[0][0].current].sort((a, b) => a.localeCompare(b))).toEqual([
-        "76561198000000001",
-        "76561198000000002",
-        "76561198000000003",
-      ]);
+      expect(
+        [...(left.mock.calls[0]?.[0].current ?? [])].sort((a, b) => a.localeCompare(b)),
+      ).toEqual(["76561198000000001", "76561198000000002", "76561198000000003"]);
     });
 
     it("allplayers.custom never reaches state or pollutes roster events", () => {
@@ -906,7 +904,7 @@ describe("@server: GSI", () => {
           name: "NiKo",
         },
         custom: { joined: ["76561198000000099"], left: [] },
-      } as typeof p.allplayers;
+      } as NonNullable<typeof p.allplayers>;
 
       manager.update(p);
 

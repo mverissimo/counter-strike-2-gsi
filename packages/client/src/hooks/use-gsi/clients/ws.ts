@@ -1,4 +1,5 @@
 import type { EventMap, EventPayload } from "@counter-strike-2-gsi/types";
+import { parseEventFrame } from "./payload";
 
 export type WSStatus = "connecting" | "connected" | "disconnected";
 export type WSError =
@@ -58,11 +59,6 @@ export interface WSClientOptions {
 const CLEAN_CLOSE_CODES = new Set([1000, 1001]);
 
 type Handler<E extends keyof EventMap> = (data: EventPayload<E>) => void;
-
-interface Payload {
-  event: keyof EventMap;
-  data: unknown;
-}
 
 export function createWSClient(options: WSClientOptions) {
   const {
@@ -140,10 +136,12 @@ export function createWSClient(options: WSClientOptions) {
     socket.onmessage = (e) => {
       const raw = typeof e.data === "string" ? e.data : String(e.data);
 
-      let frame: Payload;
+      let frame: ReturnType<typeof parseEventFrame>;
 
       try {
-        frame = JSON.parse(raw);
+        const value: unknown = JSON.parse(raw);
+
+        frame = parseEventFrame(value);
       } catch (cause) {
         onError?.({
           type: "parse",
@@ -154,7 +152,7 @@ export function createWSClient(options: WSClientOptions) {
         return;
       }
 
-      handlers.get(frame.event)?.forEach((h) => h(frame.data as EventPayload<keyof EventMap>));
+      handlers.get(frame.event)?.forEach((h) => h(frame.data));
     };
   }
 

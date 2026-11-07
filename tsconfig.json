@@ -1,9 +1,11 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true,
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "allowImportingTsExtensions": true,
-    "esModuleInterop": true
-  }
+    "target": "es2023",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "files": ["vite.config.ts"]
 }

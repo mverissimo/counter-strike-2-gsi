@@ -161,13 +161,16 @@ pnpm workspace monorepo built with [Vite+](https://viteplus.dev) (`vp` CLI). Req
 
 ```bash
 pnpm install        # install workspace deps
-pnpm ready          # fmt + lint + test + build everything (run before pushing)
+pnpm ready          # fmt + lint (includes typechecking) + test + build
+pnpm typecheck      # check every workspace using its own compiler settings
 pnpm dev            # website dev server
 vp test             # all package tests
 vp run -r build     # build all packages
 ```
 
 Per-package: `pnpm build`, `pnpm dev` (watch), `pnpm test`, `pnpm typecheck`.
+
+`tsconfig.base.json` holds shared strictness settings; the root `tsconfig.json` covers Vite tooling. Vite+ typechecks during `vp lint` because `lint.options.typeAware` and `typeCheck` are enabled in `vite.config.ts`, so `pnpm ready` does not run a separate compiler pass. `pnpm typecheck` remains available for an explicit root/workspace compiler check. All projects enable `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `noImplicitOverride`, and configure `skipLibCheck: false`.
 
 Repo layout: publishable code lives in [`packages/*`](packages); [`apps/website`](apps/website) is a Vite playground app (not yet wired to the client).
 

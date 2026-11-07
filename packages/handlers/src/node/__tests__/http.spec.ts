@@ -15,7 +15,7 @@ function createRequest(chunks: Buffer[], method = "POST") {
       remoteAddress: "127.0.0.1",
     },
     destroy: vi.fn(),
-    async *[Symbol.asyncIterator]() {
+    async *iterator() {
       for (const chunk of chunks) {
         yield chunk;
       }
@@ -46,11 +46,9 @@ function createResponse() {
 
 describe("createNodeHandler: body accumulation", () => {
   it("reassembles a body split across chunks", async () => {
-    const { fake, manager } = createFakeManager();
-    const updates: unknown[] = [];
+    const { fake, manager, updates } = createFakeManager();
 
     fake.state = {};
-    (manager as unknown as { update: (p: unknown) => void }).update = (p) => updates.push(p);
 
     const json = JSON.stringify({ round: { phase: "live" } });
     const request = createRequest([
@@ -72,8 +70,7 @@ describe("createNodeHandler: body accumulation", () => {
     const { manager } = createFakeManager();
     const updates: Array<{ map?: { name?: string } }> = [];
 
-    (manager as unknown as { update: (p: unknown) => void }).update = (p) =>
-      updates.push(p as { map?: { name?: string } });
+    manager.update = (p) => updates.push(p as { map?: { name?: string } });
 
     const name = "de_вертиго🎯";
     const buffer = Buffer.from(JSON.stringify({ map: { name } }), "utf8");
@@ -108,7 +105,7 @@ describe("createNodeHandler: body accumulation", () => {
     const { manager } = createFakeManager();
     const update = vi.fn();
 
-    (manager as unknown as { update: unknown }).update = update;
+    manager.update = update;
 
     const request = createRequest([
       Buffer.from(JSON.stringify({ auth: { token: "wrong" }, round: { phase: "live" } }), "utf8"),

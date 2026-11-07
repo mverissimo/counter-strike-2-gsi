@@ -1,7 +1,9 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "esnext",
     "lib": ["es2023", "DOM"],
+    "types": ["node"],
     "moduleDetection": "force",
     "module": "preserve",
     "moduleResolution": "bundler",

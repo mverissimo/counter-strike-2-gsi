@@ -18,7 +18,10 @@ const count = () => {
   sink++;
 };
 
-function createGSI(changeDetection: GSIOptions["changeDetection"], validatePayload = true) {
+function createGSI(
+  changeDetection: NonNullable<GSIOptions["changeDetection"]>,
+  validatePayload = true,
+) {
   const gsi = new GSI({ changeDetection, validatePayload });
 
   gsi.on("update", count);
