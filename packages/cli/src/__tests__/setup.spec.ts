@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -18,7 +18,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "cs2-gsi-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "cs2-gsi-")));
   roots.push(root);
   const game = join(root, "steamapps/common/Counter-Strike Global Offensive");
   const cfg = join(game, "game/csgo/cfg");
