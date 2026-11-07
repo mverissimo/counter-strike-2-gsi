@@ -1,5 +1,22 @@
 # @counter-strike-2-gsi/client
 
+## 0.3.0
+
+### Minor Changes
+
+- cc3a237: Hydrate React value hooks from full snapshots while retaining actual transition deltas separately. Centralize automatic and manual connection ownership, and add React-free `/transport` and dedicated `/react` entries while preserving root imports.
+
+  Share ingress admission across Node, Bun, and Hono, enforce configurable streaming body limits in every runtime, classify strict payload failures with `GSIPayloadError`, and accept structural manager capabilities without class casts.
+
+### Patch Changes
+
+- 6ef785c: Check browser transport envelopes and object payloads before dispatch, report malformed messages through the parse-error callback, and restore serialized errors as Error instances. Keep payload and event types derived from the canonical schema without duplicating event-specific validation in the client.
+
+  Correlate derived event names and payloads, preserve runtime-specific request types in combined factories, and make manager snapshots deeply readonly and frozen. Enable stricter workspace compiler settings and use Vite+'s integrated typechecking during readiness checks.
+
+- Updated dependencies [6ef785c]
+  - @counter-strike-2-gsi/types@0.2.1
+
 ## 0.2.1
 
 ### Patch Changes
