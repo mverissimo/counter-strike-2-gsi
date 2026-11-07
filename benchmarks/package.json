@@ -11,7 +11,7 @@
   "dependencies": {
     "@counter-strike-2-gsi/server": "workspace:*",
     "@counter-strike-2-gsi/types": "workspace:*",
-    "cs2-gsi-z": "^2.0.0",
+    "cs2-gsi-z": "catalog:",
     "csgogsi": "catalog:"
   },
   "devDependencies": {

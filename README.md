@@ -65,7 +65,17 @@ A few things to know:
 
 ### 1. Tell CS2 where to send game state
 
-Create `gamestate_integration_myapp.cfg` in your CS2 config directory (`.../Counter-Strike Global Offensive/game/csgo/cfg/`):
+The [CLI](packages/cli/README.md) can discover your Steam libraries and install or update the configuration automatically. From this repository:
+
+```bash
+pnpm --filter @counter-strike-2-gsi/cli build
+node packages/cli/dist/cli.mjs install
+node packages/cli/dist/cli.mjs verify
+```
+
+Restart CS2 after installation. Run verification with your GSI server stopped, then start the server using the `auth.token` in the generated CFG instead of the example token below. See the CLI README for custom paths, endpoints, and component selection.
+
+For manual setup, create `gamestate_integration_myapp.cfg` in your CS2 config directory (`.../Counter-Strike Global Offensive/game/csgo/cfg/`):
 
 ```
 "My CS2 GSI App"
@@ -147,7 +157,7 @@ Pass a `ws://` URL to use the WebSocket transport instead — see the [client RE
 
 ## Development
 
-pnpm workspace monorepo built with [Vite+](https://viteplus.dev) (`vp` CLI). Requires Node >= 22.12.0 and pnpm.
+pnpm workspace monorepo built with [Vite+](https://viteplus.dev) (`vp` CLI). Requires Node ^22.18.0, ^24.11.0, or >=26.0.0 and pnpm.
 
 ```bash
 pnpm install        # install workspace deps

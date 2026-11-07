@@ -4,7 +4,7 @@ import { GSI, type GSIOptions } from "@counter-strike-2-gsi/server";
 import type { EventMap } from "@counter-strike-2-gsi/types";
 import { DifferManager, GsiUpdateHandler, default_differs } from "cs2-gsi-z";
 import { CSGOGSI } from "csgogsi";
-import { bench, describe } from "vitest";
+import { describe, test } from "vitest";
 
 import { serializedFrames, serializedHeartbeat } from "./session";
 
@@ -110,58 +110,76 @@ describe(`session replay (${serializedFrames.length} frames: damage, buys, bomb,
   const cs2GsiZ = createCs2GsiZ();
   const csgogsi = createCsgogsi();
 
-  bench("@counter-strike-2-gsi/server (granular)", () => {
-    for (const frame of serializedFrames) {
-      granular.update(JSON.parse(frame));
-    }
+  test("@counter-strike-2-gsi/server (granular)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (granular)", () => {
+      for (const frame of serializedFrames) {
+        granular.update(JSON.parse(frame));
+      }
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (granular, all blocks subscribed)", () => {
-    for (const frame of serializedFrames) {
-      granularFullSub.update(JSON.parse(frame));
-    }
+  test("@counter-strike-2-gsi/server (granular, all blocks subscribed)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (granular, all blocks subscribed)", () => {
+      for (const frame of serializedFrames) {
+        granularFullSub.update(JSON.parse(frame));
+      }
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (block)", () => {
-    for (const frame of serializedFrames) {
-      block.update(JSON.parse(frame));
-    }
+  test("@counter-strike-2-gsi/server (block)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (block)", () => {
+      for (const frame of serializedFrames) {
+        block.update(JSON.parse(frame));
+      }
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (minimal)", () => {
-    for (const frame of serializedFrames) {
-      minimal.update(JSON.parse(frame));
-    }
+  test("@counter-strike-2-gsi/server (minimal)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (minimal)", () => {
+      for (const frame of serializedFrames) {
+        minimal.update(JSON.parse(frame));
+      }
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (granular, no validation)", () => {
-    for (const frame of serializedFrames) {
-      granularNoValidate.update(JSON.parse(frame));
-    }
+  test("@counter-strike-2-gsi/server (granular, no validation)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (granular, no validation)", () => {
+      for (const frame of serializedFrames) {
+        granularNoValidate.update(JSON.parse(frame));
+      }
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (block, no validation)", () => {
-    for (const frame of serializedFrames) {
-      blockNoValidate.update(JSON.parse(frame));
-    }
+  test("@counter-strike-2-gsi/server (block, no validation)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (block, no validation)", () => {
+      for (const frame of serializedFrames) {
+        blockNoValidate.update(JSON.parse(frame));
+      }
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (minimal, no validation)", () => {
-    for (const frame of serializedFrames) {
-      minimalNoValidate.update(JSON.parse(frame));
-    }
+  test("@counter-strike-2-gsi/server (minimal, no validation)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (minimal, no validation)", () => {
+      for (const frame of serializedFrames) {
+        minimalNoValidate.update(JSON.parse(frame));
+      }
+    }).run();
   });
 
-  bench("cs2-gsi-z (default differs)", () => {
-    for (const frame of serializedFrames) {
-      cs2GsiZ.handle(JSON.parse(frame) as HandlerInput);
-    }
+  test("cs2-gsi-z (default differs)", async ({ bench }) => {
+    await bench("cs2-gsi-z (default differs)", () => {
+      for (const frame of serializedFrames) {
+        cs2GsiZ.handle(JSON.parse(frame) as HandlerInput);
+      }
+    }).run();
   });
 
-  bench("csgogsi (digest)", () => {
-    for (const frame of serializedFrames) {
-      csgogsi.digest(JSON.parse(frame) as DigestInput);
-    }
+  test("csgogsi (digest)", async ({ bench }) => {
+    await bench("csgogsi (digest)", () => {
+      for (const frame of serializedFrames) {
+        csgogsi.digest(JSON.parse(frame) as DigestInput);
+      }
+    }).run();
   });
 });
 
@@ -183,32 +201,46 @@ describe("no-change heartbeat", () => {
   cs2GsiZ.handle(JSON.parse(serializedHeartbeat) as HandlerInput);
   csgogsi.digest(JSON.parse(serializedHeartbeat) as DigestInput);
 
-  bench("@counter-strike-2-gsi/server (granular)", () => {
-    granular.update(JSON.parse(serializedHeartbeat));
+  test("@counter-strike-2-gsi/server (granular)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (granular)", () => {
+      granular.update(JSON.parse(serializedHeartbeat));
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (granular, all blocks subscribed)", () => {
-    granularFullSub.update(JSON.parse(serializedHeartbeat));
+  test("@counter-strike-2-gsi/server (granular, all blocks subscribed)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (granular, all blocks subscribed)", () => {
+      granularFullSub.update(JSON.parse(serializedHeartbeat));
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (block)", () => {
-    block.update(JSON.parse(serializedHeartbeat));
+  test("@counter-strike-2-gsi/server (block)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (block)", () => {
+      block.update(JSON.parse(serializedHeartbeat));
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (minimal)", () => {
-    minimal.update(JSON.parse(serializedHeartbeat));
+  test("@counter-strike-2-gsi/server (minimal)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (minimal)", () => {
+      minimal.update(JSON.parse(serializedHeartbeat));
+    }).run();
   });
 
-  bench("@counter-strike-2-gsi/server (granular, no validation)", () => {
-    granularNoValidate.update(JSON.parse(serializedHeartbeat));
+  test("@counter-strike-2-gsi/server (granular, no validation)", async ({ bench }) => {
+    await bench("@counter-strike-2-gsi/server (granular, no validation)", () => {
+      granularNoValidate.update(JSON.parse(serializedHeartbeat));
+    }).run();
   });
 
-  bench("cs2-gsi-z (default differs)", () => {
-    cs2GsiZ.handle(JSON.parse(serializedHeartbeat) as HandlerInput);
+  test("cs2-gsi-z (default differs)", async ({ bench }) => {
+    await bench("cs2-gsi-z (default differs)", () => {
+      cs2GsiZ.handle(JSON.parse(serializedHeartbeat) as HandlerInput);
+    }).run();
   });
 
-  bench("csgogsi (digest)", () => {
-    csgogsi.digest(JSON.parse(serializedHeartbeat) as DigestInput);
+  test("csgogsi (digest)", async ({ bench }) => {
+    await bench("csgogsi (digest)", () => {
+      csgogsi.digest(JSON.parse(serializedHeartbeat) as DigestInput);
+    }).run();
   });
 });
 

@@ -35,15 +35,12 @@
   "dependencies": {
     "@counter-strike-2-gsi/server": "workspace:*",
     "@counter-strike-2-gsi/types": "workspace:*",
-    "ws": "^8.18.0"
+    "ws": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
-    "@types/ws": "^8.5.12",
-    "@typescript/native-preview": "7.0.0-dev.20260309.1",
-    "bumpp": "^10.4.1",
-    "bun": "catalog:",
+    "@types/ws": "catalog:",
     "hono": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
