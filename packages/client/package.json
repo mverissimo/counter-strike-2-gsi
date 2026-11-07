@@ -20,6 +20,8 @@
   "types": "./dist/index.d.mts",
   "exports": {
     ".": "./dist/index.mjs",
+    "./react": "./dist/react.mjs",
+    "./transport": "./dist/transport.mjs",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -45,5 +47,10 @@
   },
   "peerDependencies": {
     "react": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

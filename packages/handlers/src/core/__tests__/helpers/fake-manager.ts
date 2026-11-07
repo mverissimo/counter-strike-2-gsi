@@ -1,16 +1,21 @@
-import type { GSI } from "@counter-strike-2-gsi/server";
+import type { EventMap, EventPayload, SchemaPayload } from "@counter-strike-2-gsi/types";
 
 /**
  * Minimal stand-in for the GSI manager: just enough of `state`/`on` for
  * the SSE/WS cores, plus test-only `emit`/`listenerCount` introspection.
  */
-export function createFakeManager(initialState: object = { round: { phase: "live" } }) {
+export function createFakeManager(initialState: SchemaPayload = { round: { phase: "live" } }) {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
+  const updates: unknown[] = [];
 
   const fake = {
     state: initialState,
 
-    on(event: string, handler: (payload: unknown) => void) {
+    update(payload: unknown) {
+      updates.push(payload);
+    },
+
+    on<E extends keyof EventMap>(event: E, handler: (payload: EventPayload<E>) => void) {
       let set = listeners.get(event);
 
       if (!set) {
@@ -19,10 +24,11 @@ export function createFakeManager(initialState: object = { round: { phase: "live
         listeners.set(event, set);
       }
 
-      set.add(handler);
+      const listener = (payload: unknown) => handler(payload as EventPayload<E>);
+      set.add(listener);
 
       return () => {
-        set.delete(handler);
+        set.delete(listener);
       };
     },
 
@@ -37,7 +43,8 @@ export function createFakeManager(initialState: object = { round: { phase: "live
 
   return {
     fake,
-    manager: fake as unknown as GSI,
+    manager: fake,
+    updates,
   };
 }
 

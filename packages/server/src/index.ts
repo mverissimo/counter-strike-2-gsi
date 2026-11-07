@@ -1,4 +1,5 @@
 export { GSI } from "./gsi";
+export { GSIPayloadError } from "./errors";
 export type { GSIOptions } from "./gsi";
 export { defaultLogger, silentLogger } from "./lib/logger";
 export type { GSILogger } from "./lib/logger";

@@ -4,21 +4,26 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { StrictMode, type ReactNode } from "react";
 
 import {
   GSIProvider,
   useGSIClient,
+  useGSIDelta,
   useGSIEvent,
   useGSIEvents,
+  useGSISelector,
   useGSIState,
   useGSIStatus,
 } from "../use-gsi";
 import { MockEventSource } from "./helpers/mock-event-source";
+import { MockWebSocket } from "./helpers/mock-web-socket";
 
 beforeEach(() => {
   MockEventSource.reset();
+  MockWebSocket.reset();
   vi.stubGlobal("EventSource", MockEventSource);
+  vi.stubGlobal("WebSocket", MockWebSocket);
 });
 
 afterEach(() => {
@@ -37,6 +42,160 @@ function emit(event: string, data: unknown) {
     MockEventSource.latest().emit(event, data);
   });
 }
+
+describe.each([
+  { url: "http://gsi.test/sse", transport: MockEventSource },
+  { url: "ws://gsi.test/ws", transport: MockWebSocket },
+])("@client: snapshot hydration ($url)", ({ url, transport }) => {
+  function transportWrapper({ children }: { children: ReactNode }) {
+    return <GSIProvider url={url}>{children}</GSIProvider>;
+  }
+
+  it("hydrates value hooks without inventing a transition", () => {
+    const { result } = renderHook(
+      () => ({
+        health: useGSIEvent("player:state:health"),
+        values: useGSIEvents(["player:state:health", "round:phase"]),
+        selected: useGSISelector("player:state:health", (health) => health ?? 0),
+        delta: useGSIDelta("player:state:health"),
+      }),
+      { wrapper: transportWrapper },
+    );
+
+    act(() =>
+      transport.latest().emit("update", {
+        player: { state: { health: 100 } },
+        round: { phase: "live" },
+      }),
+    );
+
+    expect(result.current.health).toBe(100);
+    expect(result.current.values).toEqual({ "player:state:health": 100, "round:phase": "live" });
+    expect(result.current.selected).toBe(100);
+    expect(result.current.delta).toBeUndefined();
+  });
+
+  it("applies block deltas to nested values and removes absent snapshot values", () => {
+    const { result } = renderHook(
+      () => ({ health: useGSIEvent("player:state:health"), player: useGSIEvent("player") }),
+      { wrapper: transportWrapper },
+    );
+
+    act(() => transport.latest().emit("update", { player: { state: { health: 100 } } }));
+    act(() => transport.latest().emit("player", { current: { state: { health: 80 } } }));
+    expect(result.current.health).toBe(80);
+
+    act(() => transport.latest().emit("update", {}));
+    expect(result.current.health).toBeUndefined();
+    expect(result.current.player).toBeUndefined();
+  });
+
+  it("keeps actual transitions separate from newer snapshots", () => {
+    const { result } = renderHook(
+      () => ({
+        health: useGSIEvent("player:state:health"),
+        delta: useGSIDelta("player:state:health"),
+      }),
+      { wrapper: transportWrapper },
+    );
+
+    act(() => transport.latest().emit("player:state:health", { previous: 100, current: 80 }));
+    act(() => transport.latest().emit("update", { player: { state: { health: 60 } } }));
+
+    expect(result.current.health).toBe(60);
+    expect(result.current.delta).toEqual({ previous: 100, current: 80 });
+  });
+
+  it("hydrates a late subscriber from the latest full snapshot", () => {
+    function Display({ show }: { show: boolean }) {
+      useGSIStatus();
+      return <>{show ? <Health /> : null}</>;
+    }
+    function Health() {
+      return <span data-testid="late-health">{useGSIEvent("player:state:health")}</span>;
+    }
+    const { rerender } = render(<Display show={false} />, { wrapper: transportWrapper });
+    act(() => transport.latest().emit("update", { player: { state: { health: 75 } } }));
+    rerender(<Display show={true} />);
+
+    expect(screen.getByTestId("late-health").textContent).toBe("75");
+  });
+});
+
+describe("@client: connection ownership", () => {
+  it("keeps a manual connection when the last subscriber leaves", () => {
+    let controls: ReturnType<typeof useGSIClient>;
+    function Controls() {
+      controls = useGSIClient();
+      return null;
+    }
+    function Subscriber() {
+      useGSIStatus();
+      return null;
+    }
+    const { rerender, unmount } = render(
+      <>
+        <Controls />
+        <Subscriber />
+      </>,
+      { wrapper },
+    );
+    const source = MockEventSource.latest();
+
+    act(() => controls.connect());
+    rerender(<Controls />);
+    expect(source.readyState).not.toBe(MockEventSource.CLOSED);
+
+    unmount();
+    expect(source.readyState).toBe(MockEventSource.CLOSED);
+  });
+
+  it("keeps manual disconnection in force across new subscriptions", () => {
+    let controls: ReturnType<typeof useGSIClient>;
+    function Controls() {
+      controls = useGSIClient();
+      return null;
+    }
+    function Subscriber() {
+      useGSIStatus();
+      return null;
+    }
+    const { rerender } = render(
+      <>
+        <Controls />
+        <Subscriber />
+      </>,
+      { wrapper },
+    );
+    act(() => controls.disconnect());
+    const count = MockEventSource.instances.length;
+
+    rerender(<Controls />);
+    rerender(
+      <>
+        <Controls />
+        <Subscriber />
+        <Subscriber />
+      </>,
+    );
+    expect(MockEventSource.instances).toHaveLength(count);
+
+    act(() => controls.connect());
+    expect(MockEventSource.instances).toHaveLength(count + 1);
+  });
+
+  it("reconnects after StrictMode effect replay", () => {
+    renderHook(() => useGSIEvent("player:state:health"), {
+      wrapper: ({ children }) => (
+        <StrictMode>
+          <GSIProvider url="http://gsi.test/sse">{children}</GSIProvider>
+        </StrictMode>
+      ),
+    });
+
+    expect(MockEventSource.latest().readyState).not.toBe(MockEventSource.CLOSED);
+  });
+});
 
 describe("@client: useGSIState", () => {
   it("returns undefined before the first update", () => {

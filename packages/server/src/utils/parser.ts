@@ -4,6 +4,7 @@ import type { SchemaPayload } from "@counter-strike-2-gsi/types";
 import { ArkErrors } from "arktype";
 
 import type { GSILogger } from "../lib/logger";
+import { GSIPayloadError } from "../errors";
 
 export interface ValidationIssue {
   /** arktype's human-readable error summary. */
@@ -57,18 +58,18 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
     try {
       rawPayload = JSON.parse(input);
     } catch (err) {
-      throw new Error(`GSI parser: Invalid JSON payload\n${(err as Error).message}`);
+      throw new GSIPayloadError(`GSI parser: Invalid JSON payload\n${(err as Error).message}`);
     }
   } else if (typeof input === "object" && input !== null) {
     rawPayload = input;
   } else {
-    throw new Error(
+    throw new GSIPayloadError(
       `GSI parser: Input must be a string (JSON) or a non-null object. Received: ${typeof input}`,
     );
   }
 
   if (typeof rawPayload !== "object" || rawPayload === null || Array.isArray(rawPayload)) {
-    throw new Error("GSI parser: Payload must be a non-null object after parsing");
+    throw new GSIPayloadError("GSI parser: Payload must be a non-null object after parsing");
   }
 
   if (!validatePayload) {
@@ -82,7 +83,7 @@ export function parsePayload(input: unknown, options: ParserPayloadOptions = {})
 
   if (isArkErrors(result)) {
     if (strictValidation) {
-      throw new Error(`GSI validation failed:\n${result.summary}`);
+      throw new GSIPayloadError(`GSI validation failed:\n${result.summary}`);
     }
 
     logger.warn("[GSI] payload validation warning:", result.summary);
