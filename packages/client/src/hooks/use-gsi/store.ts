@@ -36,6 +36,8 @@ function writePath(state: unknown, segments: string[], value: unknown): Record<s
   const next: Record<string, unknown> =
     state !== null && typeof state === "object" ? { ...state } : {};
 
+  if (key === undefined) return next;
+
   if (remaining.length > 0) {
     return {
       ...next,
@@ -67,7 +69,7 @@ export function createStore({ url, onError }: CreateStoreOptions) {
     url.startsWith("ws://") || url.startsWith("wss://") ? createWSClient : createSSEClient;
   const client = factory({
     url,
-    onError,
+    ...(onError ? { onError } : {}),
     onStatusChange(next) {
       if (next !== status) {
         status = next;

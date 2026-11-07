@@ -235,7 +235,7 @@ describe("@server/utils: microdiff path ↔ LeafPaths round-trip", () => {
           name: "NiKo",
         },
         custom: { joined: ["76561198000000099"], left: [] },
-      } as typeof raw.allplayers;
+      } as NonNullable<typeof raw.allplayers>;
 
       const current = parsePayload(raw);
 

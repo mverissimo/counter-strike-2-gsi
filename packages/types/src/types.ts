@@ -6,6 +6,10 @@ import type { LeafPaths } from "./utils";
 export type { PathValue } from "./utils";
 export { MAX_PATH_DEPTH, FLATTENED_KEYS } from "./utils";
 
+export type DeepReadonly<T> = T extends object
+  ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+  : T;
+
 /**
  * Represents a state change between two game state payloads.
  *
@@ -20,7 +24,7 @@ export { MAX_PATH_DEPTH, FLATTENED_KEYS } from "./utils";
  * ```
  */
 export type Delta<T> = {
-  previous?: T;
+  previous?: T | undefined;
   current: T;
 };
 
@@ -89,39 +93,39 @@ export type EventMap = GeneratedEventMap & {
   /** `round.phase` flipped to `"live"`. */
   "round:started": {
     /** `map.round` at the moment the round went live. */
-    round?: number;
+    round?: number | undefined;
   };
   /** `round.phase` flipped to `"over"`. */
   "round:ended": {
     winner?: NonNullable<SchemaPayload["round"]>["win_team"];
     /** How the bomb factored into the outcome, when it did. */
     bomb?: NonNullable<SchemaPayload["round"]>["bomb"];
-    round?: number;
+    round?: number | undefined;
   };
   /** `bomb.state` flipped to `"planted"`. */
   "bomb:planted": {
     /** SteamID of the planter, when CS2 reports it. */
-    player?: string;
-    countdown?: string;
+    player?: string | undefined;
+    countdown?: string | undefined;
   };
   /** `bomb.state` flipped to `"defused"`. */
   "bomb:defused": {
     /** SteamID of the defuser, when CS2 reports it. */
-    player?: string;
+    player?: string | undefined;
   };
   /** `bomb.state` flipped to `"exploded"`. */
   "bomb:exploded": {
-    position?: string;
+    position?: string | undefined;
   };
   /** The observed player's `state.health` hit 0. */
   "player:died": {
-    steamid?: string;
-    name?: string;
+    steamid?: string | undefined;
+    name?: string | undefined;
   };
   /** The observed player's `state.round_kills` went up. */
   "player:killed": {
-    steamid?: string;
-    name?: string;
+    steamid?: string | undefined;
+    name?: string | undefined;
     /** Kills gained in this tick (usually 1; >1 collapses simultaneous frags). */
     kills: number;
     /** Headshot kills gained in this tick. */

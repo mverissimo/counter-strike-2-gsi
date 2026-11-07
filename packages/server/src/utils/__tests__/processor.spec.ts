@@ -106,7 +106,7 @@ describe("@server/utils: processor", () => {
           steamid: newId,
           name: "NiKo",
         },
-      } as SchemaPayload["allplayers"];
+      } as NonNullable<SchemaPayload["allplayers"]>;
 
       const listener = vi.fn();
 
@@ -252,7 +252,7 @@ describe("@server/utils: processor", () => {
     });
 
     it("emits granular events using the full change path", () => {
-      current.player = clonePayload(payload).player;
+      current.player = clonePayload(payload).player!;
       current.player!.weapons!["weapon_0"]!.ammo_clip = 20;
 
       const intermediateListener = vi.fn();
@@ -317,7 +317,7 @@ describe("@server/utils: processor", () => {
           steamid: newId,
           name: "new",
         },
-      } as SchemaPayload["allplayers"];
+      } as NonNullable<SchemaPayload["allplayers"]>;
 
       const listener = vi.fn();
 
@@ -345,7 +345,7 @@ describe("@server/utils: processor", () => {
           joined: ["76561198000000099"],
           left: [],
         },
-      } as SchemaPayload["allplayers"];
+      } as NonNullable<SchemaPayload["allplayers"]>;
 
       emitter.on("allplayers:76561198000000001:state:health" as keyof EventMap, vi.fn());
       processor.granular(previous, current, emitter);
@@ -365,7 +365,7 @@ describe("@server/utils: processor", () => {
             custom: "not-roster-bookkeeping",
           },
         },
-      } as unknown as SchemaPayload["player"];
+      } as unknown as NonNullable<SchemaPayload["player"]>;
 
       emitter.on("player:weapons:weapon_0:name" as keyof EventMap, vi.fn());
       processor.granular(previous, current, emitter);
@@ -391,7 +391,7 @@ describe("@server/utils: processor", () => {
           joined: [newId],
           left: [],
         },
-      } as SchemaPayload["allplayers"];
+      } as NonNullable<SchemaPayload["allplayers"]>;
 
       emitter.on("allplayers:76561198000000001:state:health" as keyof EventMap, vi.fn());
       emitter.on("allplayers:joined", vi.fn());
@@ -411,7 +411,7 @@ describe("@server/utils: processor", () => {
           joined: [],
           left: ["76561198000000003"],
         },
-      } as SchemaPayload["allplayers"];
+      } as NonNullable<SchemaPayload["allplayers"]>;
 
       emitter.on("allplayers:joined", listener);
       processor.granular(previous, current, emitter);
@@ -585,7 +585,7 @@ describe("@server/utils: processor", () => {
           steamid: newId,
           name: "NiKo",
         },
-      } as SchemaPayload["allplayers"];
+      } as NonNullable<SchemaPayload["allplayers"]>;
 
       const listener = vi.fn();
 

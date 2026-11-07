@@ -1,4 +1,5 @@
 import type { EventMap, EventPayload } from "@counter-strike-2-gsi/types";
+import { parseEventPayload } from "./payload";
 
 export type SSEStatus = "connecting" | "connected" | "disconnected";
 
@@ -84,7 +85,9 @@ export function createSSEClient(options: SSEClientOptions) {
       let data: EventPayload<typeof event>;
 
       try {
-        data = JSON.parse((e as MessageEvent).data);
+        const value: unknown = JSON.parse((e as MessageEvent).data);
+
+        data = parseEventPayload(event, value);
       } catch (cause) {
         onError?.({
           type: "parse",

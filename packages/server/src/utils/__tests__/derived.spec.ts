@@ -33,7 +33,7 @@ describe("@server/utils: deriveEvents", () => {
       // Roster membership is level-triggered: a HUD attaching mid-match
       // should be able to seed its scoreboard from the very first payload,
       // unlike round/bomb/player which are edge-triggered transitions.
-      const current: SchemaPayload = { allplayers: payload.allplayers };
+      const current: SchemaPayload = { allplayers: payload.allplayers! };
 
       const events = deriveEvents({}, current);
 
@@ -56,8 +56,8 @@ describe("@server/utils: deriveEvents", () => {
 
   describe("round:started", () => {
     it("fires when phase flips to live from something else", () => {
-      const previous: SchemaPayload = { round: { phase: "freezetime" }, map: payload.map };
-      const current: SchemaPayload = { round: { phase: "live" }, map: payload.map };
+      const previous: SchemaPayload = { round: { phase: "freezetime" }, map: payload.map! };
+      const current: SchemaPayload = { round: { phase: "live" }, map: payload.map! };
 
       const event = find(deriveEvents(previous, current), "round:started");
 
@@ -84,10 +84,10 @@ describe("@server/utils: deriveEvents", () => {
 
   describe("round:ended", () => {
     it("fires when phase flips to over, carrying winner and bomb outcome", () => {
-      const previous: SchemaPayload = { round: { phase: "live" }, map: payload.map };
+      const previous: SchemaPayload = { round: { phase: "live" }, map: payload.map! };
       const current: SchemaPayload = {
         round: { phase: "over", win_team: "CT", bomb: "defused" },
-        map: payload.map,
+        map: payload.map!,
       };
 
       const event = find(deriveEvents(previous, current), "round:ended");
@@ -405,7 +405,7 @@ describe("@server/utils: deriveEvents", () => {
           ...current.allplayers!["76561198000000002"]!,
           steamid: "76561198000000099",
         },
-      } as typeof current.allplayers;
+      } as NonNullable<typeof current.allplayers>;
 
       expect(find(deriveEvents(previous, current), "allplayers:joined")).toEqual({
         event: "allplayers:joined",
@@ -442,7 +442,7 @@ describe("@server/utils: deriveEvents", () => {
       current.allplayers = {
         ...current.allplayers,
         custom: { joined: [], left: [] },
-      } as typeof current.allplayers;
+      } as NonNullable<typeof current.allplayers>;
 
       const events = deriveEvents(previous, current);
 
@@ -461,7 +461,7 @@ describe("@server/utils: deriveEvents", () => {
           ...current.allplayers!["76561198000000002"]!,
           steamid: "76561198000000099",
         },
-      } as typeof current.allplayers;
+      } as NonNullable<typeof current.allplayers>;
 
       const names = deriveEvents(previous, current)
         .map((e) => e.event)

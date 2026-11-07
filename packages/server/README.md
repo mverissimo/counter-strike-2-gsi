@@ -109,6 +109,9 @@ Worth knowing:
 
 ## Behavior worth knowing
 
+- **Snapshots are deeply immutable.** `manager.state` has a recursive readonly type, and merged state is recursively frozen before publishing it to readers and event listeners. Nested writes cannot bypass `update()`. Caller-owned input is not frozen, and older snapshots keep their values after later updates or `reset()`.
+- **Derived events form a discriminated union.** Narrowing a `DerivedEvent` by its `event` name also narrows its `payload`; mismatched event/payload pairs are rejected by TypeScript.
+
 - **State is merged, not replaced.** CS2 sends partial payloads; `update()` deep-merges them into the existing state, so `manager.state` is always the full picture.
 - **State snapshots are immutable.** Every update produces new objects for the sub-trees that changed and reuses the references for the ones that didn't. Nothing already handed out by `manager.state` — or by the `previous` side of a delta — is ever written to afterwards, including when sparse collections (roster, grenades, weapons) lose entries. Holding a reference across updates is safe; it just gives you that point in time.
 - **Stripped keys.** `auth` (the shared secret — never allowed into state that gets broadcast to clients), `previously`, and `added` (CS2's own change-bookkeeping blocks) are removed before merging, and so is `allplayers.custom` (CS2's roster bookkeeping — the manager computes `allplayers:joined`/`allplayers:left` from the roster itself, so a literal `"custom"` entry would otherwise pollute SteamID iteration and emit event names the type system deliberately flattens away). You will never receive `previously:*` or `allplayers:custom:*` events.

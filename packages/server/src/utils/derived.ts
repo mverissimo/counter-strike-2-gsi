@@ -22,10 +22,9 @@ export type DerivedEventName =
   | "allplayers:joined"
   | "allplayers:left";
 
-export interface DerivedEvent<E extends DerivedEventName = DerivedEventName> {
-  event: E;
-  payload: EventMap[E];
-}
+export type DerivedEvent<E extends DerivedEventName = DerivedEventName> = {
+  [Name in E]: { event: Name; payload: EventMap[Name] };
+}[E];
 
 const FLATTENED = new Set<string>(FLATTENED_KEYS);
 

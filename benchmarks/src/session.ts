@@ -203,15 +203,23 @@ function snap(mutate: (draft: typeof basePayload) => void): void {
   frames.push(JSON.stringify(working));
 }
 
+function entry<Value>(collection: Record<string, Value>, key: string): Value {
+  const value = collection[key];
+
+  if (value === undefined) throw new Error(`Missing benchmark fixture entry: ${key}`);
+
+  return value;
+}
+
 // damage tick, players moving
 snap((draft) => {
   draft.player.state.health = 67;
   draft.player.state.armor = 82;
   draft.player.position = "-402.1, 1198.6, -52.1";
-  draft.allplayers[S1MPLE].state.health = 67;
-  draft.allplayers[S1MPLE].state.armor = 82;
-  draft.allplayers[S1MPLE].position = "-402.1, 1198.6, -52.1";
-  draft.allplayers[ZYWOO].position = "305.4, 852.2, -60.0";
+  entry(draft.allplayers, S1MPLE).state.health = 67;
+  entry(draft.allplayers, S1MPLE).state.armor = 82;
+  entry(draft.allplayers, S1MPLE).position = "-402.1, 1198.6, -52.1";
+  entry(draft.allplayers, ZYWOO).position = "305.4, 852.2, -60.0";
   draft.phase_countdowns.phase_ends_in = "88.2";
 });
 
@@ -223,16 +231,16 @@ snap((draft) => {
 
 // ZywOo takes damage
 snap((draft) => {
-  draft.allplayers[ZYWOO].state.health = 50;
-  draft.allplayers[ZYWOO].state.round_totaldmg = 180;
+  entry(draft.allplayers, ZYWOO).state.health = 50;
+  entry(draft.allplayers, ZYWOO).state.round_totaldmg = 180;
 });
 
 // grenade lifetimes tick, players moving
 snap((draft) => {
-  draft.grenades["291"].lifetime = "4.742";
-  draft.grenades["331"].lifetime = "3.550";
-  draft.grenades["331"].effecttime = "1.344";
-  draft.allplayers[DONK].position = "162.7, 668.0, -58.3";
+  entry(draft.grenades, "291").lifetime = "4.742";
+  entry(draft.grenades, "331").lifetime = "3.550";
+  entry(draft.grenades, "331").effecttime = "1.344";
+  entry(draft.allplayers, DONK).position = "162.7, 668.0, -58.3";
   draft.phase_countdowns.phase_ends_in = "84.9";
 });
 
@@ -248,7 +256,7 @@ snap((draft) => {
 // bomb countdown + grenade tick
 snap((draft) => {
   draft.bomb.countdown = "30.0";
-  draft.grenades["291"].lifetime = "5.242";
+  entry(draft.grenades, "291").lifetime = "5.242";
   draft.phase_countdowns.phase_ends_in = "35.0";
 });
 
@@ -257,10 +265,10 @@ snap((draft) => {
   draft.player.state.health = 0;
   draft.player.state.round_kills = 3;
   draft.player.state.round_killhs = 2;
-  draft.allplayers[S1MPLE].state.health = 0;
-  draft.allplayers[S1MPLE].state.armor = 0;
-  draft.allplayers[S1MPLE].match_stats.deaths = 5;
-  draft.allplayers[ZYWOO].match_stats.kills = 6;
+  entry(draft.allplayers, S1MPLE).state.health = 0;
+  entry(draft.allplayers, S1MPLE).state.armor = 0;
+  entry(draft.allplayers, S1MPLE).match_stats.deaths = 5;
+  entry(draft.allplayers, ZYWOO).match_stats.kills = 6;
 });
 
 // round over, CT wins
@@ -281,9 +289,9 @@ snap((draft) => {
   draft.player.state.money = 3900;
   draft.player.state.round_kills = 0;
   draft.player.state.round_killhs = 0;
-  for (const steamid of Object.keys(draft.allplayers)) {
-    draft.allplayers[steamid].state.health = 100;
-    draft.allplayers[steamid].state.round_kills = 0;
+  for (const player of Object.values(draft.allplayers)) {
+    player.state.health = 100;
+    player.state.round_kills = 0;
   }
   draft.grenades = {};
   draft.phase_countdowns.phase = "freezetime";

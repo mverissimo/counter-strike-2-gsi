@@ -35,7 +35,7 @@ const adapters: Array<{ name: string; start: (options: Options) => Send | Promis
         handler(
           new Request("http://gsi.test/gsi", {
             method,
-            body: method === "GET" ? undefined : body,
+            ...(method === "GET" ? {} : { body }),
           }),
         );
     },
@@ -48,7 +48,7 @@ const adapters: Array<{ name: string; start: (options: Options) => Send | Promis
       return async (body, method = "POST") =>
         app.request("http://gsi.test/gsi", {
           method,
-          body: method === "GET" ? undefined : body,
+          ...(method === "GET" ? {} : { body }),
         });
     },
   },
@@ -72,7 +72,7 @@ const adapters: Array<{ name: string; start: (options: Options) => Send | Promis
       return (body, method = "POST") =>
         fetch(`http://127.0.0.1:${address.port}/gsi`, {
           method,
-          body: method === "GET" ? undefined : body,
+          ...(method === "GET" ? {} : { body }),
         });
     },
   },
@@ -150,7 +150,7 @@ describe.each(adapters)("ingress policy: $name", ({ start }) => {
     const response = await send(JSON.stringify({ round: { phase: "invalid" } }));
 
     expect(response.status).toBe(400);
-    expect(onError.mock.calls[0][0]).toBeInstanceOf(GSIPayloadError);
+    expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(GSIPayloadError);
     expect(manager.state).toEqual({});
   });
 
@@ -204,11 +204,12 @@ describe("streaming admission", () => {
         },
         cancel,
       });
-      const request = new Request("http://gsi.test/gsi", {
+      const init = {
         method: "POST",
         body: stream,
         duplex: "half",
-      });
+      } satisfies RequestInit & { duplex: "half" };
+      const request = new Request("http://gsi.test/gsi", init);
 
       await expect(
         createIngress({ manager: { update() {} }, maxBodyBytes: 8 })(

@@ -32,6 +32,7 @@ Inferred from the schema, one per block:
 - `EventPayload<E>` — payload type for a given event name.
 - `Block` / `BlockEventName` / `GranularEventName` — top-level block names vs. nested path events.
 - `PathValue<T, P>` — resolves the value type at a colon-separated path; used by the client hooks so template-literal keys like `` `allplayers:${string}:name` `` narrow to `string` instead of a wide union.
+- `DeepReadonly<T>` — recursively readonly data, including nested objects and arrays; used by `GSI.state`.
 
 ## How event names are generated
 

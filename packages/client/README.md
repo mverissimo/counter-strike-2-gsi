@@ -102,6 +102,10 @@ client.disconnect();
 
 Both clients share the same shape (`connect` / `disconnect` / `subscribe`) and options:
 
+Both clients decode JSON and require object payloads; WebSocket also checks the `{ event, data }` envelope. Malformed messages are dropped and reported through `onError` with `type: "parse"`; the connection remains usable. These are transport checks, not schema validation: clients expect events from a trusted GSI server, whose ingress parser validates against the canonical schema by default. Event-specific fields are not revalidated in the browser. Serialized remote errors are restored as `Error` instances.
+
+Payload and event types remain derived from the canonical schema in `@counter-strike-2-gsi/types`. With `skipLibCheck: false`, browser-only consumers may need Node ambient types because of transitive ArkType declarations; no separate payload model is maintained to work around that dependency issue.
+
 | Option                | Default      | Description                                                                        |
 | --------------------- | ------------ | ---------------------------------------------------------------------------------- |
 | `url`                 | — (required) | Endpoint URL.                                                                      |

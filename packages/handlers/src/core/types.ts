@@ -1,11 +1,16 @@
-import type { EventMap, EventPayload, SchemaPayload } from "@counter-strike-2-gsi/types";
+import type {
+  DeepReadonly,
+  EventMap,
+  EventPayload,
+  SchemaPayload,
+} from "@counter-strike-2-gsi/types";
 
 interface IngressManager {
   update(payload: unknown): void;
 }
 
 interface StreamManager {
-  readonly state: Readonly<SchemaPayload>;
+  readonly state: DeepReadonly<SchemaPayload>;
   on<E extends keyof EventMap>(event: E, handler: (payload: EventPayload<E>) => void): () => void;
 }
 

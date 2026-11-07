@@ -39,7 +39,7 @@ type NodeRequestListener = (req: IncomingMessage, res: ServerResponse) => void |
  * });
  * ```
  */
-export function createGSINode(options: GSIServerOptions) {
+export function createGSINode(options: GSIServerOptions<IncomingMessage>) {
   const {
     manager,
     sse = {},

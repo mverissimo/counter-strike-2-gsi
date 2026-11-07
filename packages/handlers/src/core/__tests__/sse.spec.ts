@@ -54,8 +54,8 @@ describe("createSSECore", () => {
     await flush();
 
     expect(writes).toHaveLength(1);
-    expect(writes[0].event).toBe("update");
-    expect(JSON.parse(writes[0].data)).toEqual({ round: { phase: "live" } });
+    expect(writes[0]!.event).toBe("update");
+    expect(JSON.parse(writes[0]!.data)).toEqual({ round: { phase: "live" } });
 
     session.unsubscribe();
   });
@@ -79,7 +79,7 @@ describe("createSSECore", () => {
 
     expect(a.writes).toHaveLength(1);
     expect(b.writes).toHaveLength(1);
-    expect(a.writes[0].id).toBe(b.writes[0].id);
+    expect(a.writes[0]!.id).toBe(b.writes[0]!.id);
 
     sessionA.unsubscribe();
     sessionB.unsubscribe();
@@ -110,7 +110,7 @@ describe("createSSECore", () => {
     await flush();
 
     expect(late.writes).toHaveLength(1);
-    expect(late.writes[0].event).toBe("update");
+    expect(late.writes[0]!.event).toBe("update");
 
     sessionA.unsubscribe();
     sessionB.unsubscribe();
@@ -211,8 +211,8 @@ describe("createSSECore", () => {
       // Replayed event, then the snapshot — state always wins, so the client
       // can never end up behind whatever it replayed.
       expect(late.writes).toHaveLength(2);
-      expect(JSON.parse(late.writes[0].data)).toEqual({ round: { phase: "live" } });
-      expect(JSON.parse(late.writes[1].data)).toEqual({ round: { phase: "over" } });
+      expect(JSON.parse(late.writes[0]!.data)).toEqual({ round: { phase: "live" } });
+      expect(JSON.parse(late.writes[1]!.data)).toEqual({ round: { phase: "over" } });
 
       sessionFirst.unsubscribe();
       sessionLate.unsubscribe();
@@ -239,7 +239,7 @@ describe("createSSECore", () => {
       await flush();
 
       expect(late.writes).toHaveLength(1);
-      expect(JSON.parse(late.writes[0].data)).toEqual({ round: { phase: "live" } });
+      expect(JSON.parse(late.writes[0]!.data)).toEqual({ round: { phase: "live" } });
 
       sessionFirst.unsubscribe();
       sessionLate.unsubscribe();
@@ -259,7 +259,7 @@ describe("createSSECore", () => {
       await flush();
 
       expect(writes).toHaveLength(1);
-      expect(JSON.parse(writes[0].data)).toEqual({ round: { phase: "live" } });
+      expect(JSON.parse(writes[0]!.data)).toEqual({ round: { phase: "live" } });
 
       session.unsubscribe();
     });
@@ -289,7 +289,7 @@ describe("createSSECore", () => {
       await flush();
 
       expect(late.writes).toHaveLength(1);
-      expect(JSON.parse(late.writes[0].data)).toEqual({ round: { phase: "over" } });
+      expect(JSON.parse(late.writes[0]!.data)).toEqual({ round: { phase: "over" } });
 
       sessionFirst.unsubscribe();
       sessionLate.unsubscribe();
@@ -322,10 +322,15 @@ describe("createSSECore", () => {
 
       const [first, second] = writes.map((w) => w.id);
 
+      if (first === undefined || second === undefined)
+        throw new Error("Expected two replay events");
+
       expect(writes).toHaveLength(2);
       // Same timestamp component (clamped), counter breaks the tie.
       expect(second.split("-")[0]).toBe(first.split("-")[0]);
-      expect(parseInt(second.split("-")[1], 36)).toBeGreaterThan(parseInt(first.split("-")[1], 36));
+      expect(parseInt(second.split("-")[1] ?? "", 36)).toBeGreaterThan(
+        parseInt(first.split("-")[1] ?? "", 36),
+      );
 
       // And the second event is still replayable to a client sitting on the
       // first id — the whole point of the monotonic clamp.
@@ -335,7 +340,7 @@ describe("createSSECore", () => {
       await flush();
 
       expect(late.writes).toHaveLength(1);
-      expect(JSON.parse(late.writes[0].data)).toEqual({ round: { phase: "over" } });
+      expect(JSON.parse(late.writes[0]!.data)).toEqual({ round: { phase: "over" } });
 
       session.unsubscribe();
       sessionLate.unsubscribe();

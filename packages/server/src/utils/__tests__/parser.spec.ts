@@ -149,7 +149,7 @@ describe("@server/utils/: parsePayload", () => {
       parsePayload(invalidPayload);
 
       const warnArgs = (console.warn as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(warnArgs[0]).toContain("[GSI]");
+      expect(warnArgs?.[0]).toContain("[GSI]");
     });
 
     it("strict mode: throws with 'GSI validation failed'", () => {

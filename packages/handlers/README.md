@@ -61,6 +61,8 @@ Bun.serve({ port: 3000, fetch: gsi.handler, websocket: gsi.websocket });
 
 ### Hono
 
+Hono's public declarations use Web Platform types, including `BinaryType`. Include `"DOM"` in TypeScript's `compilerOptions.lib` when using this adapter, even on a Node host. The Node adapter does not require DOM libraries. Both standalone and combined factories preserve the adapter-specific `onError` request type (`IncomingMessage` for Node, `Request` for Bun/Hono).
+
 ```ts
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";

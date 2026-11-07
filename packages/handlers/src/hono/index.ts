@@ -49,7 +49,10 @@ type UpgradeWebSocket = (
  * injectWebSocket(server);
  * ```
  */
-export function createGSIHono(options: GSIServerOptions, upgradeWebSocket?: UpgradeWebSocket) {
+export function createGSIHono(
+  options: GSIServerOptions<Request>,
+  upgradeWebSocket?: UpgradeWebSocket,
+) {
   const {
     manager,
     sse = {},

@@ -56,7 +56,7 @@ export function createWSCore(options: WSOptions) {
       clientId,
       maxPendingWrites,
       logger,
-      onBackpressure,
+      ...(onBackpressure ? { onBackpressure } : {}),
       label: "WS",
       unit: "frames",
     });

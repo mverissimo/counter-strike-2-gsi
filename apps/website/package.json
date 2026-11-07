@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "dev": "vp dev",
     "build": "tsc && vp build",
     "preview": "vp preview"

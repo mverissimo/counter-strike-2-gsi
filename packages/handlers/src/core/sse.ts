@@ -120,7 +120,7 @@ export function createSSECore(options: SSEOptions) {
   const trimStaleEvents = () => {
     const now = monotonicNow();
 
-    while (replayBuffer.length && now - replayBuffer[0].timestamp > maxReplayAgeMs) {
+    while (replayBuffer[0] && now - replayBuffer[0].timestamp > maxReplayAgeMs) {
       replayBuffer.shift();
     }
   };
@@ -259,7 +259,7 @@ export function createSSECore(options: SSEOptions) {
       clientId,
       maxPendingWrites,
       logger,
-      onBackpressure,
+      ...(onBackpressure ? { onBackpressure } : {}),
       label: "SSE",
       unit: "writes",
     });

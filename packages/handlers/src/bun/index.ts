@@ -46,7 +46,7 @@ type BunFetchHandler = (
  * });
  * ```
  */
-export function createGSIBun(options: GSIServerOptions) {
+export function createGSIBun(options: GSIServerOptions<Request>) {
   const {
     manager,
     sse = {},
