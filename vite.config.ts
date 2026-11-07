@@ -14,7 +14,9 @@ export default defineConfig({
     tasks: {
       build: {
         command: "vp run -r build",
-        output: ["packages/*/dist/**", "apps/*/dist/**"],
+        cache: {
+          output: ["packages/*/dist/**", "apps/*/dist/**"],
+        },
       },
       lint: "vp lint",
       test: "vp test",

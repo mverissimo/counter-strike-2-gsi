@@ -157,7 +157,7 @@ Pass a `ws://` URL to use the WebSocket transport instead — see the [client RE
 
 ## Development
 
-pnpm workspace monorepo built with [Vite+](https://viteplus.dev) (`vp` CLI). Requires Node >= 22.12.0 and pnpm.
+pnpm workspace monorepo built with [Vite+](https://viteplus.dev) (`vp` CLI). Requires Node ^22.18.0, ^24.11.0, or >=26.0.0 and pnpm.
 
 ```bash
 pnpm install        # install workspace deps

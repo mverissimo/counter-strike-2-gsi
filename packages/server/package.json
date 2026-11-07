@@ -37,18 +37,15 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@typescript/native-preview": "7.0.0-dev.20260309.1",
     "arktype": "catalog:",
-    "bumpp": "^10.4.1",
-    "type-fest": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
   },
   "inlinedDependencies": {
-    "@ark/schema": "0.56.0",
-    "@ark/util": "0.56.0",
-    "arkregex": "0.0.5",
-    "arktype": "2.2.0"
+    "@ark/schema": "0.56.8",
+    "@ark/util": "0.56.8",
+    "arkregex": "0.0.14",
+    "arktype": "2.2.9"
   }
 }
