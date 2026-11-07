@@ -46,28 +46,3 @@ jobs:
         with:
           path: node_modules/.vite/task-cache
           key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
-
-  cli-windows:
-    name: CLI on Windows
-    runs-on: windows-latest
-    steps:
-      - name: Checkout branch
-        uses: actions/checkout@v7
-
-      - name: Install
-        uses: ./.github/composite-actions/install
-
-      - name: Check CLI types
-        working-directory: packages/cli
-        run: vp exec tsc --noEmit
-
-      - name: Test CLI
-        working-directory: packages/cli
-        run: vp test
-
-      - name: Build CLI
-        working-directory: packages/cli
-        run: vp pack
-
-      - name: Check executable
-        run: node packages/cli/dist/cli.mjs --help

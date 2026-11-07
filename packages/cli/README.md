@@ -51,4 +51,4 @@ Steam discovery reports unreadable or malformed manifests and continues searchin
 
 ## Development checks
 
-`pnpm --filter @counter-strike-2-gsi/cli test` runs the behavior tests. `pnpm --filter @counter-strike-2-gsi/cli typecheck` checks the package with TypeScript. CI runs the CLI tests, typecheck, build, and executable help on Windows. These checks use temporary fixtures; a real Steam/CS2 installation remains a separate integration check.
+`pnpm --filter @counter-strike-2-gsi/cli test` runs the behavior tests. `pnpm --filter @counter-strike-2-gsi/cli typecheck` checks the package with TypeScript. CI runs the workspace checks, tests, and builds on Ubuntu. These checks use temporary fixtures; a real Steam/CS2 installation remains a separate integration check.

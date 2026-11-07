@@ -5,7 +5,6 @@ export default defineConfig({
     "*": "vp check --fix",
   },
   lint: {
-    ignorePatterns: ["**/vite.config.*"],
     options: {
       typeAware: true,
       typeCheck: true,
