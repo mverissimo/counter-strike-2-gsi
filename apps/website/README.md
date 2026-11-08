@@ -1,6 +1,6 @@
 # Website — TanStack Start foundation
 
-Minimal TanStack Start application. All content is typed mock data: no database, authentication, GSI connection, persistence, or external data services. The ReUI preset foundation is configured; the registry example and application design are not implemented yet.
+Minimal TanStack Start application. All content is typed mock data: no database, authentication, GSI connection, persistence, or external data services. The ReUI preset is configured and the static shadcn `sidebar-09` example is available at `/sidebar`.
 
 ## Commands
 
@@ -32,4 +32,6 @@ The search parameter `view` accepts `canvas` or `outline`; missing/invalid value
 
 Initialized with `shadcn init --preset bJMSkwJm`: Base Nova, Stone, Inter, and Hugeicons. Tailwind v4 is configured through its Vite plugin, with global CSS linked from the root document. `components.json` registers `@reui` and the `@/*` source alias.
 
-Step 2 remains incomplete: the requested ReUI MCP at `https://mcp.reui.io` requires account authentication. Component discovery, installation, and rendering one registry example are pending that access. No registry component has been handwritten or substituted.
+Installed `@reui/c-sidebar-2` through the registry CLI using the exact item supplied by the user. The MCP still requires authentication, so the skill’s documented CLI fallback was used. That component remains available in `src/components/examples/c-sidebar-2.tsx`.
+
+`/sidebar` now renders shadcn `sidebar-09`, installed with `pnpm dlx shadcn@latest add sidebar-09`, retaining the existing Base Nova primitives and theme. It uses the registry’s two-column mail sidebar and placeholder content inside TooltipProvider. Full SSR renders the static initial markup; interactive controls hydrate on the client. The navigation uses the stashed HUD Studio destinations: `/huds`, `/editor`, `/templates`, `/assets`, and `/settings`, grouped under Workspace, Library, and Preferences. These full-SSR routes share the existing sidebar layout and static placeholder content; no editor, persistence, backend, or authentication is restored. Only `/editor` displays the secondary sidebar; other routes use the main icon rail and give the remaining width to their content. `/sidebar` remains a preview of the main navigation. Collapse resets on reload; no server-side cookie restoration is added.

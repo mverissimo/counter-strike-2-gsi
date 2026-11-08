@@ -35,6 +35,8 @@ function Home() {
         <Link to="/" search={{ view: "outline" }}>
           Outline
         </Link>
+        {" · "}
+        <Link to="/sidebar">Sidebar example</Link>
       </nav>
     </main>
   );
