@@ -14,6 +14,7 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import type { EditorElement, EditorScene } from "@/features/hud/document";
 
@@ -31,6 +32,7 @@ const rootId = "scene-tree-root";
 const missingItem: NavigationItem = { type: "root", name: "Scenes", children: [] };
 
 export function EditorNavigation() {
+  const { open } = useSidebar();
   const {
     scenes,
     sceneId,
@@ -98,7 +100,8 @@ export function EditorNavigation() {
   return (
     <Sidebar
       collapsible="none"
-      className="hidden min-w-0 flex-1 bg-background md:flex"
+      className="hidden w-60 shrink-0 bg-background md:flex"
+      inert={!open}
       aria-label="Editor secondary navigation"
     >
       <SidebarHeader className="h-12 flex-row items-center justify-between border-b px-5 py-0">

@@ -24,7 +24,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       className="overflow-hidden *:data-[sidebar=sidebar]:flex-row"
       {...props}
     >
-      <Sidebar collapsible="none" className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r">
+      <Sidebar collapsible="none" className="w-(--sidebar-width-icon)! shrink-0 border-r">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
