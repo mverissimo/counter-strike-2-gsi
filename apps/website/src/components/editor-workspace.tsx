@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Cursor01Icon, HandIcon } from "@hugeicons/core-free-icons";
+import {
+  Cursor01Icon,
+  HandIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+  FitToScreenIcon,
+} from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -78,12 +84,6 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
             </ToggleGroupItem>
           </ToggleGroup>
           <div className="ml-auto flex items-center gap-2">
-            <EditorZoomMenu
-              zoom={zoom}
-              onZoom={setZoomSetting}
-              onFit={fitCanvas}
-              onReset={fitCanvas}
-            />
             <Tooltip disableHoverablePopup>
               <TooltipTrigger
                 render={
@@ -143,48 +143,111 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
               </div>
             )}
           </div>
-          {mode === "editor" && (
-            <ToggleGroup
-              aria-label="Canvas tools"
-              orientation="vertical"
-              value={[tool]}
-              onValueChange={(values) => {
-                const value = values[0];
-                if (value === "select" || value === "pan") setTool(value);
-              }}
-              spacing={1}
-              className="absolute top-1/2 left-3 z-10 -translate-y-1/2 rounded-xl border bg-sidebar/95 p-1 shadow-sm sm:left-4"
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex items-center justify-center gap-2 px-2">
+            <div
+              role="group"
+              aria-label="Canvas zoom"
+              className="pointer-events-auto flex shrink-0 items-center gap-0.5 rounded-xl border border-border/60 bg-sidebar/95 p-1 shadow-sm"
             >
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <ToggleGroupItem
-                      value="select"
-                      aria-label="Select tool"
-                      className="size-8 min-w-0 px-0 text-muted-foreground aria-pressed:text-foreground"
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Zoom out"
+                      disabled={zoom <= 10}
+                      onClick={() => setZoomSetting(Math.max(10, zoom / 1.25))}
+                      className="size-8 text-muted-foreground"
                     />
                   }
                 >
-                  <HugeiconsIcon icon={Cursor01Icon} strokeWidth={1.5} aria-hidden="true" />
+                  <HugeiconsIcon icon={ZoomOutIcon} strokeWidth={1.5} aria-hidden="true" />
                 </TooltipTrigger>
-                <TooltipContent side="right">Select</TooltipContent>
+                <TooltipContent side="top">Zoom out</TooltipContent>
+              </Tooltip>
+              <EditorZoomMenu
+                zoom={zoom}
+                onZoom={setZoomSetting}
+                onFit={fitCanvas}
+                onReset={fitCanvas}
+              />
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Zoom in"
+                      disabled={zoom >= 400}
+                      onClick={() => setZoomSetting(Math.min(400, zoom * 1.25))}
+                      className="size-8 text-muted-foreground"
+                    />
+                  }
+                >
+                  <HugeiconsIcon icon={ZoomInIcon} strokeWidth={1.5} aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent side="top">Zoom in</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <ToggleGroupItem
-                      value="pan"
-                      aria-label="Pan tool"
-                      className="size-8 min-w-0 px-0 text-muted-foreground aria-pressed:text-foreground"
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Fit to canvas"
+                      onClick={fitCanvas}
+                      className="size-8 text-muted-foreground"
                     />
                   }
                 >
-                  <HugeiconsIcon icon={HandIcon} strokeWidth={1.5} aria-hidden="true" />
+                  <HugeiconsIcon icon={FitToScreenIcon} strokeWidth={1.5} aria-hidden="true" />
                 </TooltipTrigger>
-                <TooltipContent side="right">Pan</TooltipContent>
+                <TooltipContent side="top">Fit to canvas</TooltipContent>
               </Tooltip>
-            </ToggleGroup>
-          )}
+            </div>
+            {mode === "editor" && (
+              <ToggleGroup
+                aria-label="Canvas tools"
+                value={[tool]}
+                onValueChange={(values) => {
+                  const value = values[0];
+                  if (value === "select" || value === "pan") setTool(value);
+                }}
+                spacing={1}
+                className="pointer-events-auto shrink-0 rounded-xl border border-border/60 bg-sidebar/95 p-1 shadow-sm"
+              >
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <ToggleGroupItem
+                        value="select"
+                        aria-label="Select tool"
+                        className="size-8 min-w-0 px-0 text-muted-foreground aria-pressed:text-foreground"
+                      />
+                    }
+                  >
+                    <HugeiconsIcon icon={Cursor01Icon} strokeWidth={1.5} aria-hidden="true" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Select</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <ToggleGroupItem
+                        value="pan"
+                        aria-label="Pan tool"
+                        className="size-8 min-w-0 px-0 text-muted-foreground aria-pressed:text-foreground"
+                      />
+                    }
+                  >
+                    <HugeiconsIcon icon={HandIcon} strokeWidth={1.5} aria-hidden="true" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Pan</TooltipContent>
+                </Tooltip>
+              </ToggleGroup>
+            )}
+          </div>
         </div>
       </div>
       {mode === "editor" && <PropertiesSidebar />}

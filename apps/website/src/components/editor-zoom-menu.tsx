@@ -39,13 +39,19 @@ export function EditorZoomMenu({
       }}
     >
       <DropdownMenuTrigger
-        render={<Button variant="ghost" size="sm" className="min-w-16 tabular-nums" />}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 min-w-16 px-2 text-xs tabular-nums text-muted-foreground"
+          />
+        }
         aria-label={`Zoom: ${Math.round(zoom)}%`}
       >
         {Math.round(zoom)}%{" "}
         <HugeiconsIcon icon={ArrowDown01Icon} className="size-3" aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-48" align="end" sideOffset={8}>
+      <DropdownMenuContent className="w-48" align="center" side="top" sideOffset={8}>
         <form
           className="p-1"
           onSubmit={(event) => {
