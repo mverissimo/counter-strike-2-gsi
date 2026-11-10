@@ -1,6 +1,6 @@
 # Website — TanStack Start foundation
 
-Minimal TanStack Start application. All content is typed mock data: no database, authentication, GSI connection, persistence, or external data services. The ReUI preset is configured and the static shadcn `sidebar-09` example is available at `/sidebar`.
+TanStack Start application with a local HUD editor. All content is typed mock data: no database, authentication, GSI connection, persistence, or external data services. The ReUI preset is configured and the static shadcn `sidebar-09` example is available at `/sidebar`.
 
 ## Commands
 
@@ -34,4 +34,28 @@ Initialized with `shadcn init --preset bJMSkwJm`: Base Nova, Stone, Inter, and H
 
 Installed `@reui/c-sidebar-2` through the registry CLI using the exact item supplied by the user. The MCP still requires authentication, so the skill’s documented CLI fallback was used. That component remains available in `src/components/examples/c-sidebar-2.tsx`.
 
-`/sidebar` now renders shadcn `sidebar-09`, installed with `pnpm dlx shadcn@latest add sidebar-09`, retaining the existing Base Nova primitives and theme. It uses the registry’s two-column mail sidebar and placeholder content inside TooltipProvider. Full SSR renders the static initial markup; interactive controls hydrate on the client. The navigation uses the stashed HUD Studio destinations: `/huds`, `/editor`, `/templates`, `/assets`, and `/settings`, grouped under Workspace, Library, and Preferences. These full-SSR routes share the existing sidebar layout and static placeholder content; no editor, persistence, backend, or authentication is restored. Only `/editor` displays the secondary sidebar; other routes use the main icon rail and give the remaining width to their content. `/sidebar` remains a preview of the main navigation. Collapse resets on reload; no server-side cookie restoration is added.
+The application navigation was adapted from shadcn `sidebar-09` with the existing Base Nova primitives and theme. `/huds`, `/templates`, `/assets`, `/settings`, and `/sidebar` share the primary navigation and placeholder content. `/editor` adds scene/element navigation, the canvas, and a properties inspector. Sidebar collapse resets on reload.
+
+## Player Card workflow
+
+Open `/editor`. The sample scene starts with a selected Player Card. Drag it, use its resize handles, or edit X/Y/W/H in Properties. All geometry uses the 1920×1080 design space, independent of editor zoom. The minimum card size is 240×160; edits stay inside the artboard. Preview renders the same scene without React Flow or selection controls.
+
+In Player data, choose a mock player and edit its name, health, armor, and portrait URL directly. Health and armor are bounded to 0–100; an empty portrait uses the player's initial. These edits update local mock data for every scene using that player, without changing the HUD document. Player Card controls only show/hide its portrait, name, health, and armor. There are no damage simulation, connection switches, or appearance controls.
+
+Each scene allows one element of each type. Types already present stay disabled in the add menu, including hidden elements. Different scenes can select different mock players. Missing players use the component's default fallback values. Element rows only toggle visibility; elements have no editable name, lock, or delete action. The inspector contains layout and component controls, without generic Element, Appearance, or State sections. Scene locks still prevent edits.
+
+The starter intentionally contains one working card. Text labels render as simple text; Match score, Team roster, and Kill feed remain editor placeholders and are omitted from Preview. Save is disabled: state is temporary, and refreshing resets it. No custom code import, live GSI, persistence, or scene transitions are implemented.
+
+### Module responsibilities
+
+- `src/features/hud/document.ts`: versioned, serializable scene/element model, schema validation, geometry constraints, and defaults. React Flow nodes and editor selection/viewport state are not part of the document.
+- `src/features/hud/catalog.ts`: json-render catalog, Zod prop schemas, defaults, and typed inspector metadata. The built-in component identifier is `player-card`.
+- `src/features/hud/mock-data.ts`: editable, validated mock player data and typed input resolution. Components read the selected player and use defaults if that player is missing. Mock data stays separate from the HUD document.
+- `src/features/hud/renderer.tsx`: json-render component registry and standalone scene renderer. Neither imports editor state or React Flow. Appearance adapts the Player Card from `feat/hud-scene-transitions`; local sample portraits come from `feat/hud-catalog-on-overlay`.
+- `src/features/editor/editor-canvas.tsx`: React Flow interaction adapter. Nodes derive from the document; transient drag/resize geometry stays local and final gestures commit through editor operations.
+- `src/features/editor/player-properties.tsx`: editable mock-player fields and metadata-driven component visibility switches.
+- `src/components/editor-context.tsx`: local document operations and separate selection/mock-data state. Shared operations enforce locks and geometry constraints.
+
+Built-in component inputs are inferred from the prop schema. Future user-created definitions would require runtime validation and a separate import/execution design; this slice does not implement that feature. json-render currently handles catalog/prop typing and rendering; binding resolution belongs to our explicit mock-data adapter.
+
+`/editor` keeps full SSR for the shell and initial mock document; React Flow interactions hydrate on the client. The renderer is also covered by a server-render test without any editor providers. Workflow tests cover independent instances, changing mock data, fallback values, document round trips/validation, hidden elements, and geometry bounds.

@@ -1,11 +1,11 @@
 import { useId } from "react";
+import { PlayerProperties } from "@/features/editor/player-properties";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { useEditor } from "@/components/editor-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,15 +66,9 @@ function NumberProperty({
 }
 
 export function ElementProperties() {
-  const {
-    scene,
-    selectedItem: element,
-    setSelectedElement,
-    updateProperties,
-    updateElement,
-  } = useEditor();
+  const { scene, selectedItem: element, setSelectedElement, updateProperties } = useEditor();
   const id = useId();
-  const locked = !!(scene?.locked || element?.locked);
+  const locked = !!scene?.locked;
   return (
     <>
       <div className="border-b p-3">
@@ -86,7 +80,7 @@ export function ElementProperties() {
             disabled={!scene?.elements.length}
             aria-label="Select element to inspect"
           >
-            <span className="truncate">{element?.name ?? "Select an element"}</span>
+            <span className="truncate">{element?.kind ?? "Select an element"}</span>
             <HugeiconsIcon
               icon={ArrowDown01Icon}
               className="size-3.5 shrink-0"
@@ -107,7 +101,7 @@ export function ElementProperties() {
                   closeOnClick
                   className="text-xs"
                 >
-                  {item.name}
+                  {item.kind}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -121,26 +115,6 @@ export function ElementProperties() {
       ) : (
         <div key={element.id} className="min-h-0 flex-1 overflow-y-auto">
           <fieldset disabled={locked} className="min-w-0 disabled:opacity-60">
-            <section className="space-y-3 border-b p-4" aria-label="Element details">
-              <h3 className="text-xs font-semibold">Element</h3>
-              <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-2">
-                <Label htmlFor={`${id}-name`} className="text-xs font-normal text-muted-foreground">
-                  Name
-                </Label>
-                <Input
-                  id={`${id}-name`}
-                  value={element.name}
-                  maxLength={100}
-                  onChange={(event) => updateProperties({ name: event.target.value })}
-                  onBlur={() => {
-                    if (!element.name.trim()) updateProperties({ name: element.kind });
-                  }}
-                  className="h-7 border-0 bg-muted px-2 text-xs md:text-xs"
-                />
-                <span className="text-xs text-muted-foreground">Type</span>
-                <span className="text-xs">{element.kind}</span>
-              </div>
-            </section>
             <section className="space-y-3 border-b p-4" aria-label="Layout properties">
               <h3 className="text-xs font-semibold">Layout</h3>
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
@@ -161,84 +135,21 @@ export function ElementProperties() {
                 <NumberProperty
                   label="W"
                   value={element.width}
-                  min={1}
+                  min={element.kind === "Player card" ? 240 : 1}
                   max={1920}
                   onChange={(width) => updateProperties({ width })}
                 />
                 <NumberProperty
                   label="H"
                   value={element.height}
-                  min={1}
+                  min={element.kind === "Player card" ? 160 : 1}
                   max={1080}
                   onChange={(height) => updateProperties({ height })}
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">Pixels · 1920 × 1080 canvas</p>
             </section>
-            <section className="space-y-3 border-b p-4" aria-label="Appearance properties">
-              <h3 className="text-xs font-semibold">Appearance</h3>
-              <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-2 gap-y-3">
-                <Label
-                  htmlFor={`${id}-color`}
-                  className="text-xs font-normal text-muted-foreground"
-                >
-                  Color
-                </Label>
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <input
-                    id={`${id}-color`}
-                    type="color"
-                    value={element.color}
-                    onChange={(event) =>
-                      updateProperties({ color: event.target.value.toUpperCase() })
-                    }
-                    className="size-7 shrink-0 cursor-pointer overflow-hidden rounded-md border-0 bg-transparent p-0 disabled:cursor-default [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0"
-                  />
-                  <Input
-                    key={element.color}
-                    aria-label="Hex color"
-                    defaultValue={element.color.slice(1)}
-                    maxLength={7}
-                    onBlur={(event) => {
-                      const color = event.target.value.trim().replace(/^#/, "").toUpperCase();
-                      if (/^[0-9A-F]{6}$/.test(color)) updateProperties({ color: `#${color}` });
-                      else event.target.value = element.color.slice(1);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") event.currentTarget.blur();
-                    }}
-                    className="h-7 min-w-0 border-0 bg-muted px-2 text-xs uppercase md:text-xs"
-                  />
-                </div>
-                <Label
-                  htmlFor={`${id}-opacity`}
-                  className="text-xs font-normal text-muted-foreground"
-                >
-                  Opacity
-                </Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id={`${id}-opacity`}
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={element.opacity}
-                    onChange={(event) => updateProperties({ opacity: Number(event.target.value) })}
-                    className="h-4 min-w-0 flex-1 accent-foreground"
-                  />
-                  <output htmlFor={`${id}-opacity`} className="w-9 text-right text-xs tabular-nums">
-                    {element.opacity}%
-                  </output>
-                </div>
-              </div>
-              <NumberProperty
-                label="Radius"
-                value={element.radius}
-                min={0}
-                max={100}
-                onChange={(radius) => updateProperties({ radius })}
-              />
-            </section>
+            {element.kind === "Player card" && <PlayerProperties element={element} />}
             {element.kind === "Text label" && (
               <section className="space-y-3 border-b p-4" aria-label="Text properties">
                 <h3 className="text-xs font-semibold">Text</h3>
@@ -262,37 +173,11 @@ export function ElementProperties() {
               </section>
             )}
           </fieldset>
-          <section className="space-y-3 border-b p-4" aria-label="Element state">
-            <h3 className="text-xs font-semibold">State</h3>
-            <Label className="flex items-center justify-between text-xs font-normal text-muted-foreground">
-              Visible
-              <Switch
-                size="sm"
-                checked={element.visible}
-                onCheckedChange={(visible) =>
-                  updateElement(element.id, (item) => ({ ...item, visible }))
-                }
-              />
-            </Label>
-            <Label className="flex items-center justify-between text-xs font-normal text-muted-foreground">
-              Locked
-              <Switch
-                size="sm"
-                disabled={scene?.locked}
-                checked={element.locked}
-                onCheckedChange={(locked) =>
-                  updateElement(element.id, (item) => ({ ...item, locked }))
-                }
-              />
-            </Label>
-            {locked && (
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {scene?.locked
-                  ? "Unlock the scene to edit its elements."
-                  : "Unlock this element to edit its properties."}
-              </p>
-            )}
-          </section>
+          {locked && (
+            <p className="px-4 py-3 text-xs text-muted-foreground">
+              Unlock the scene to edit its elements.
+            </p>
+          )}
         </div>
       )}
     </>

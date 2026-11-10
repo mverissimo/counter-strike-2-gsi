@@ -6,6 +6,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PropertiesSidebar } from "@/components/properties-sidebar";
 import { EditorZoomMenu } from "@/components/editor-zoom-menu";
+import { useEditor } from "@/components/editor-context";
+import { EditorCanvas } from "@/features/editor/editor-canvas";
+import { HudRenderer } from "@/features/hud/renderer";
 
 const canvasWidth = 1920;
 const canvasHeight = 1080;
@@ -16,15 +19,8 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
   const [zoomSetting, setZoomSetting] = useState<number | "fit">("fit");
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [panning, setPanning] = useState(false);
+  const { scene, players } = useEditor();
   const viewportRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{
-    pointerId: number;
-    x: number;
-    y: number;
-    originX: number;
-    originY: number;
-  } | null>(null);
   const fitZoom = Math.max(
     10,
     Math.min(
@@ -96,14 +92,14 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
                     className="inline-flex rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 }
-                aria-label="Save unavailable: no editable HUD is loaded"
+                aria-label="Save unavailable: changes are temporary"
               >
                 <Button variant="secondary" size="sm" disabled className="px-3 text-xs">
                   Save
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                Save will be available when an editable HUD is loaded.
+                Changes are temporary. Saving will be added in a later step.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -113,56 +109,39 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
             ref={viewportRef}
             role="region"
             aria-label={mode === "editor" ? "Editor canvas" : "HUD preview"}
-            className={`absolute inset-0 overflow-hidden ${mode === "editor" ? "bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[16px_16px]" : ""} ${mode === "editor" && tool === "pan" ? "touch-none" : ""} ${mode === "editor" && tool === "pan" ? (panning ? "cursor-grabbing" : "cursor-grab") : "cursor-default"}`}
-            style={{ backgroundPosition: `${offset.x}px ${offset.y}px` }}
-            onPointerDown={(event) => {
-              if (mode !== "editor" || tool !== "pan" || event.button !== 0) return;
-              event.preventDefault();
-              drag.current = {
-                pointerId: event.pointerId,
-                x: event.clientX,
-                y: event.clientY,
-                originX: offset.x,
-                originY: offset.y,
-              };
-              event.currentTarget.setPointerCapture(event.pointerId);
-              setPanning(true);
-            }}
-            onPointerMove={(event) => {
-              const current = drag.current;
-              if (!current || current.pointerId !== event.pointerId) return;
-              setOffset({
-                x: current.originX + event.clientX - current.x,
-                y: current.originY + event.clientY - current.y,
-              });
-            }}
-            onPointerUp={(event) => {
-              if (drag.current?.pointerId === event.pointerId) {
-                drag.current = null;
-                setPanning(false);
-                event.currentTarget.releasePointerCapture(event.pointerId);
-              }
-            }}
-            onLostPointerCapture={() => {
-              drag.current = null;
-              setPanning(false);
-            }}
-            onPointerCancel={() => {
-              drag.current = null;
-              setPanning(false);
-            }}
+            className="absolute inset-0 overflow-hidden"
           >
-            <div
-              data-slot="hud-artboard"
-              aria-label="1920 by 1080 HUD canvas"
-              className={`absolute top-1/2 left-1/2 bg-background ${mode === "editor" ? "ring-1 ring-border" : ""}`}
-              style={{
-                width: canvasWidth,
-                height: canvasHeight,
-                transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) scale(${zoom / 100})`,
-                visibility: viewport.width ? "visible" : "hidden",
-              }}
-            />
+            {mode === "editor" ? (
+              <EditorCanvas
+                tool={tool}
+                viewport={{
+                  x: (viewport.width - (canvasWidth * zoom) / 100) / 2 + offset.x,
+                  y: (viewport.height - (canvasHeight * zoom) / 100) / 2 + offset.y,
+                  zoom: zoom / 100,
+                }}
+                onViewportChange={(next) => {
+                  setZoomSetting(next.zoom * 100);
+                  setOffset({
+                    x: next.x - (viewport.width - canvasWidth * next.zoom) / 2,
+                    y: next.y - (viewport.height - canvasHeight * next.zoom) / 2,
+                  });
+                }}
+              />
+            ) : (
+              <div
+                data-slot="hud-artboard"
+                aria-label="1920 by 1080 HUD canvas"
+                className="absolute top-1/2 left-1/2 bg-background"
+                style={{
+                  width: canvasWidth,
+                  height: canvasHeight,
+                  transform: `translate(-50%, -50%) scale(${zoom / 100})`,
+                  visibility: viewport.width ? "visible" : "hidden",
+                }}
+              >
+                <HudRenderer scene={scene} players={players} />
+              </div>
+            )}
           </div>
           {mode === "editor" && (
             <ToggleGroup

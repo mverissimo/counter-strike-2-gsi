@@ -1,8 +1,8 @@
+import { lazy, Suspense } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { navigation } from "@/shared/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { EditorProvider } from "@/components/editor-context";
-import { EditorWorkspace } from "@/components/editor-workspace";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   Breadcrumb,
@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+
+const EditorWorkspace = lazy(() =>
+  import("@/components/editor-workspace").then((module) => ({ default: module.EditorWorkspace })),
+);
 
 function WorkspaceNavigationToggle({ isEditor }: { isEditor: boolean }) {
   const { open } = useSidebar();
@@ -49,7 +53,15 @@ export function WorkspaceShell() {
           <AppSidebar />
           <SidebarInset className={isEditor ? "min-w-0 overflow-hidden" : undefined}>
             {isEditor ? (
-              <EditorWorkspace navigationToggle={<WorkspaceNavigationToggle isEditor />} />
+              <Suspense
+                fallback={
+                  <div role="status" className="p-4 text-xs text-muted-foreground">
+                    Loading editor…
+                  </div>
+                }
+              >
+                <EditorWorkspace navigationToggle={<WorkspaceNavigationToggle isEditor />} />
+              </Suspense>
             ) : (
               <>
                 <header className="sticky top-0 flex shrink-0 items-center h-12 gap-2 border-b bg-background px-4">

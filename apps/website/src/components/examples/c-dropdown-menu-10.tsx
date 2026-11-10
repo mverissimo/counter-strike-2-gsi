@@ -26,9 +26,16 @@ const elements = [
   { name: "Text label", description: "Titles and custom text", icon: TextIcon },
 ] as const;
 
-export type ElementName = (typeof elements)[number]["name"];
+import type { ElementName } from "@/features/hud/document";
+export type { ElementName } from "@/features/hud/document";
 
-export function ElementDropdown({ onAdd }: { onAdd: (name: ElementName) => void }) {
+export function ElementDropdown({
+  onAdd,
+  existingTypes = [],
+}: {
+  onAdd: (name: ElementName) => void;
+  existingTypes?: ElementName[];
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -53,6 +60,7 @@ export function ElementDropdown({ onAdd }: { onAdd: (name: ElementName) => void 
           {elements.map((element) => (
             <DropdownMenuItem
               key={element.name}
+              disabled={existingTypes.includes(element.name)}
               className="gap-3"
               onClick={() => onAdd(element.name)}
             >
@@ -64,7 +72,11 @@ export function ElementDropdown({ onAdd }: { onAdd: (name: ElementName) => void 
               />
               <div className="flex flex-1 flex-col">
                 <span className="text-sm font-medium">{element.name}</span>
-                <span className="text-xs text-muted-foreground">{element.description}</span>
+                <span className="text-xs text-muted-foreground">
+                  {existingTypes.includes(element.name)
+                    ? "Already in this scene"
+                    : element.description}
+                </span>
               </div>
             </DropdownMenuItem>
           ))}

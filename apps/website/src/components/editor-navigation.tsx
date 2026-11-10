@@ -21,9 +21,11 @@ function NavigationSection({
   onAdd,
   children,
   canAdd = true,
+  existingTypes = [],
 }: {
   title: "Scenes" | "Elements";
   canAdd?: boolean;
+  existingTypes?: ElementName[];
   onAdd: (element?: ElementName) => void;
   children: ReactNode;
 }) {
@@ -36,6 +38,7 @@ function NavigationSection({
           {canAdd &&
             (title === "Elements" ? (
               <ElementDropdown
+                existingTypes={existingTypes}
                 onAdd={(name) => {
                   onAdd(name);
                   setOpen(true);
@@ -92,7 +95,6 @@ export function EditorNavigation() {
     deleteScene,
     addElement,
     updateElement,
-    deleteElement,
   } = useEditor();
 
   return (
@@ -133,22 +135,22 @@ export function EditorNavigation() {
           )}
         </NavigationSection>
         <div className="h-px shrink-0 bg-border" />
-        <NavigationSection title="Elements" onAdd={addElement} canAdd={!!scene}>
+        <NavigationSection
+          title="Elements"
+          onAdd={addElement}
+          canAdd={!!scene && !scene.locked}
+          existingTypes={scene?.elements.map((element) => element.kind) ?? []}
+        >
           {scene?.elements.map((element) => (
             <ElementRow
               key={element.id}
-              name={element.name}
+              name={element.kind}
               visible={element.visible}
-              locked={element.locked}
               selected={selectedElement === element.id}
               onSelect={() => setSelectedElement(element.id)}
               onToggleVisibility={() =>
                 updateElement(element.id, (item) => ({ ...item, visible: !item.visible }))
               }
-              onToggleLock={() =>
-                updateElement(element.id, (item) => ({ ...item, locked: !item.locked }))
-              }
-              onDelete={() => deleteElement(element.id)}
             />
           ))}
           {!scene ? (

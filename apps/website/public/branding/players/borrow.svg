@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 120" width="96" height="120">
+  <title>borrow</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(44 45% 42%)"/>
+      <stop offset="1" stop-color="hsl(44 50% 22%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="120" fill="url(#bg)"/>
+  <circle cx="48" cy="44" r="19" fill="#fff" opacity=".92"/>
+  <path d="M48 68c-17 0-30 11-32 28h64c-2-17-15-28-32-28Z" fill="#fff" opacity=".92"/>
+</svg>
