@@ -1,3 +1,4 @@
+import { MapBackground, type MapBackgroundId } from "./map-background";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   ReactFlow,
@@ -49,10 +50,12 @@ export function EditorCanvas({
   viewport,
   onViewportChange,
   tool,
+  background,
 }: {
   viewport: Viewport;
   onViewportChange: (viewport: Viewport) => void;
   tool: "select" | "pan";
+  background: MapBackgroundId | null;
 }) {
   const { scene, selectedElement, players, setSelectedElement, updateGeometry } = useEditor();
   // Remounting on scene changes prevents transient geometry from leaking between scenes.
@@ -62,6 +65,7 @@ export function EditorCanvas({
       viewport={viewport}
       onViewportChange={onViewportChange}
       tool={tool}
+      background={background}
       scene={scene}
       selectedElement={selectedElement}
       players={players}
@@ -79,6 +83,7 @@ function SceneCanvas({
   viewport,
   onViewportChange,
   tool,
+  background,
 }: Pick<
   ReturnType<typeof useEditor>,
   "scene" | "selectedElement" | "players" | "setSelectedElement" | "updateGeometry"
@@ -86,6 +91,7 @@ function SceneCanvas({
   viewport: Viewport;
   onViewportChange: (viewport: Viewport) => void;
   tool: "select" | "pan";
+  background: MapBackgroundId | null;
 }) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   function finish(id: string, geometry: Partial<ElementProperties>) {
@@ -177,7 +183,9 @@ function SceneCanvas({
           aria-label="1920 by 1080 HUD canvas"
           className="pointer-events-none absolute -z-10 bg-background ring-1 ring-border"
           style={{ width: canvas.width, height: canvas.height }}
-        />
+        >
+          <MapBackground map={background} />
+        </div>
       </ViewportPortal>
     </ReactFlow>
   );

@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PropertiesSidebar } from "@/components/properties-sidebar";
+import { EditorBackgroundMenu } from "@/components/editor-background-menu";
+import { MapBackground, type MapBackgroundId } from "@/features/editor/map-background";
 import { EditorZoomMenu } from "@/components/editor-zoom-menu";
 import { useEditor } from "@/components/editor-context";
 import { EditorCanvas } from "@/features/editor/editor-canvas";
@@ -20,6 +22,7 @@ const canvasWidth = 1920;
 const canvasHeight = 1080;
 
 export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactNode }) {
+  const [background, setBackground] = useState<MapBackgroundId | null>(null);
   const [mode, setMode] = useState<"editor" | "preview">("editor");
   const [tool, setTool] = useState<"select" | "pan">("select");
   const [zoomSetting, setZoomSetting] = useState<number | "fit">("fit");
@@ -114,6 +117,7 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
             {mode === "editor" ? (
               <EditorCanvas
                 tool={tool}
+                background={background}
                 viewport={{
                   x: (viewport.width - (canvasWidth * zoom) / 100) / 2 + offset.x,
                   y: (viewport.height - (canvasHeight * zoom) / 100) / 2 + offset.y,
@@ -139,7 +143,10 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
                   visibility: viewport.width ? "visible" : "hidden",
                 }}
               >
-                <HudRenderer scene={scene} players={players} />
+                <MapBackground map={background} />
+                <div className="relative size-full">
+                  <HudRenderer scene={scene} players={players} />
+                </div>
               </div>
             )}
           </div>
@@ -247,6 +254,9 @@ export function EditorWorkspace({ navigationToggle }: { navigationToggle: ReactN
                 </Tooltip>
               </ToggleGroup>
             )}
+            <div className="pointer-events-auto shrink-0 rounded-xl border border-border/60 bg-sidebar/95 p-1 shadow-sm">
+              <EditorBackgroundMenu value={background} onChange={setBackground} />
+            </div>
           </div>
         </div>
       </div>

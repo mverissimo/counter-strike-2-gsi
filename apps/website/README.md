@@ -59,3 +59,5 @@ Player Card is the fully implemented HUD component. Text labels render as simple
 Built-in component inputs are inferred from the prop schema. Future user-created definitions would require runtime validation and a separate import/execution design; this slice does not implement that feature. json-render currently handles catalog/prop typing and rendering; binding resolution belongs to our explicit mock-data adapter.
 
 `/editor` keeps full SSR for the shell and initial mock document; React Flow interactions hydrate on the client. The renderer is also covered by a server-render test without any editor providers. Workflow tests cover independent instances, changing mock data, fallback values, document round trips/validation, hidden elements, and geometry bounds.
+
+The floating toolbar includes a map-background gallery (Dust II, Nuke, Overpass, or no background). Map images are local preview assets, shared by Editor and Preview, and stay separate from the HUD document and standalone renderer. The selection resets on reload. Asset source URLs are recorded in `public/branding/maps/README.md`.
