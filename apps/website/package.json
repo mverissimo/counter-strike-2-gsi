@@ -6,12 +6,41 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "dev": "vp dev",
-    "build": "tsc && vp build",
-    "preview": "vp preview"
+    "build": "vp build && tsc --noEmit",
+    "preview": "node .output/server/index.mjs",
+    "start": "node .output/server/index.mjs"
+  },
+  "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@fontsource-variable/inter": "catalog:",
+    "@headless-tree/core": "catalog:",
+    "@headless-tree/react": "catalog:",
+    "@hugeicons/core-free-icons": "catalog:",
+    "@hugeicons/react": "catalog:",
+    "@json-render/core": "catalog:",
+    "@json-render/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-start": "catalog:",
+    "@xyflow/react": "catalog:",
+    "class-variance-authority": "catalog:",
+    "cn": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "shadcn": "catalog:",
+    "tw-animate-css": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "nitro": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   }
 }
