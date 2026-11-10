@@ -32,9 +32,13 @@ export type { ElementName } from "@/features/hud/document";
 export function ElementDropdown({
   onAdd,
   existingTypes = [],
+  ariaLabel = "Add element",
+  disabled = false,
 }: {
   onAdd: (name: ElementName) => void;
   existingTypes?: ElementName[];
+  ariaLabel?: string;
+  disabled?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -42,7 +46,8 @@ export function ElementDropdown({
         render={
           <Button variant="ghost" size="icon-xs" className="size-[22px] text-muted-foreground" />
         }
-        aria-label="Add element"
+        aria-label={ariaLabel}
+        disabled={disabled}
       >
         <HugeiconsIcon icon={Add01Icon} className="size-3.5" strokeWidth={1.5} aria-hidden="true" />
       </DropdownMenuTrigger>

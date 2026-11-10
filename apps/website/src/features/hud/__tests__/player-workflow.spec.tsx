@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   constrainGeometry,
   createElement,
+  createSceneElements,
+  elementNames,
   initialDocument,
   parseDocument,
   serializeDocument,
@@ -16,6 +18,29 @@ function player(id = "one") {
   return item;
 }
 describe("Player Card workflow", () => {
+  it("creates independent complete scenes with only starter elements visible", () => {
+    const one = createSceneElements("one");
+    const two = createSceneElements("two");
+    expect(one.map((element) => element.kind)).toEqual([...elementNames]);
+    expect(one.filter((element) => element.visible).map((element) => element.kind)).toEqual([
+      "Match score",
+      "Player card",
+    ]);
+    expect(new Set([...one, ...two].map((element) => element.id)).size).toBe(
+      elementNames.length * 2,
+    );
+    expect(
+      parseDocument(
+        serializeDocument({
+          ...initialDocument,
+          scenes: [
+            { id: "one", name: "One", visible: true, locked: false, elements: one },
+            { id: "two", name: "Two", visible: true, locked: false, elements: two },
+          ],
+        }),
+      ).scenes,
+    ).toHaveLength(2);
+  });
   it("edits a shared mock player without changing other players or the HUD document", () => {
     const one = player();
     const two = player("two");
@@ -46,11 +71,11 @@ describe("Player Card workflow", () => {
   });
   it("allows one instance per type in each scene, including hidden elements", () => {
     const document = parseDocument(serializeDocument(initialDocument));
-    document.scenes[0]!.elements[0]!.visible = false;
+    document.scenes[0]!.elements.find((item) => item.kind === "Player card")!.visible = false;
     document.scenes[0]!.elements.push(player("duplicate"));
     expect(() => serializeDocument(document)).toThrow("Only one element of each type");
     document.scenes[0]!.elements.pop();
-    document.scenes[1]!.elements.push(player("another-scene"));
+    expect(document.scenes[1]!.elements.some((item) => item.kind === "Player card")).toBe(true);
     expect(parseDocument(serializeDocument(document))).toEqual(document);
   });
   it("falls back to literal props when a player is absent", () => {
@@ -65,7 +90,7 @@ describe("Player Card workflow", () => {
   it("round trips the versioned document and rejects invalid props and geometry", () => {
     const restored = parseDocument(serializeDocument(initialDocument));
     expect(restored).toEqual(initialDocument);
-    const item = restored.scenes[0]!.elements[0]!;
+    const item = restored.scenes[0]!.elements.find((item) => item.kind === "Player card")!;
     if (item.kind !== "Player card") throw new Error("Expected player card");
     item.props.health = 200;
     expect(() => serializeDocument(restored)).toThrow();
@@ -97,11 +122,11 @@ describe("Player Card workflow", () => {
     expect(html).toContain("Health: 86");
     expect(html).not.toContain("react-flow");
     const scene = document.scenes[0]!;
-    scene.elements[0]!.visible = false;
+    scene.elements.find((item) => item.kind === "Player card")!.visible = false;
     expect(renderToStaticMarkup(<HudRenderer scene={scene} players={mockPlayers} />)).not.toContain(
       'data-component="player-card"',
     );
-    scene.elements[0]!.visible = true;
+    scene.elements.find((item) => item.kind === "Player card")!.visible = true;
     scene.visible = false;
     expect(renderToStaticMarkup(<HudRenderer scene={scene} players={mockPlayers} />)).not.toContain(
       'data-component="player-card"',

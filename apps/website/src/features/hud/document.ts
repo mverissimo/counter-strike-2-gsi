@@ -122,6 +122,24 @@ export function constrainGeometry(
   return next;
 }
 
+export function createSceneElements(sceneId: string): EditorElement[] {
+  return elementNames.map((kind) => {
+    const suffix = kind === "Player card" ? "player" : kind.toLowerCase().replaceAll(" ", "-");
+    const element = createElement(kind, `${sceneId}-${suffix}`);
+    const layouts: Record<ElementName, Partial<ElementProperties>> = {
+      "Player card": { x: 64, y: 736 },
+      "Match score": { x: 660, y: 48 },
+      "Team roster": { x: 64, y: 200, width: 400, height: 480 },
+      "Kill feed": { x: 1456, y: 160, width: 400, height: 240 },
+      "Text label": { x: 660, y: 960, width: 600, height: 64 },
+    };
+    return {
+      ...constrainGeometry(element, layouts[kind]),
+      visible: kind === "Player card" || kind === "Match score",
+    };
+  });
+}
+
 export const initialDocument: HudDocument = {
   version: 1,
   canvas,
@@ -131,9 +149,18 @@ export const initialDocument: HudDocument = {
       name: "Match broadcast",
       visible: true,
       locked: false,
-      elements: [createElement("Player card", "broadcast-player")],
+      elements: createSceneElements("broadcast"),
     },
-    { id: "minimal", name: "Minimal HUD", visible: true, locked: false, elements: [] },
+    {
+      id: "minimal",
+      name: "Minimal HUD",
+      visible: true,
+      locked: false,
+      elements: createSceneElements("minimal").map((element) => ({
+        ...element,
+        visible: element.kind === "Player card",
+      })),
+    },
   ],
 };
 export function serializeDocument(document: HudDocument) {

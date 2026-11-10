@@ -34,7 +34,7 @@ Initialized with `shadcn init --preset bJMSkwJm`: Base Nova, Stone, Inter, and H
 
 Installed `@reui/c-sidebar-2` through the registry CLI using the exact item supplied by the user. The MCP still requires authentication, so the skill’s documented CLI fallback was used. That component remains available in `src/components/examples/c-sidebar-2.tsx`.
 
-The application navigation was adapted from shadcn `sidebar-09` with the existing Base Nova primitives and theme. `/huds`, `/templates`, `/assets`, `/settings`, and `/sidebar` share the primary navigation and placeholder content. `/editor` adds scene/element navigation, the canvas, and a properties inspector. Sidebar collapse resets on reload.
+The application navigation was adapted from shadcn `sidebar-09` with the existing Base Nova primitives and theme. `/huds`, `/templates`, `/assets`, `/settings`, and `/sidebar` share the primary navigation and placeholder content. `/editor` adds a scene tree, the canvas, and a properties inspector. Scenes expand to show all five built-in elements, including hidden ones. Scene rows offer Delete; element rows only toggle visibility. Selecting an element switches to its scene, while inline visibility actions work without changing the active selection. Sidebar collapse resets on reload.
 
 ## Player Card workflow
 
@@ -42,9 +42,9 @@ Open `/editor`. The sample scene starts with a selected Player Card. Drag it, us
 
 In Player data, choose a mock player and edit its name, health, armor, and portrait URL directly. Health and armor are bounded to 0–100; an empty portrait uses the player's initial. These edits update local mock data for every scene using that player, without changing the HUD document. Player Card controls only show/hide its portrait, name, health, and armor. There are no damage simulation, connection switches, or appearance controls.
 
-Each scene allows one element of each type. Types already present stay disabled in the add menu, including hidden elements. Different scenes can select different mock players. Missing players use the component's default fallback values. Element rows only toggle visibility; elements have no editable name, lock, or delete action. The inspector contains layout and component controls, without generic Element, Appearance, or State sections. Scene locks still prevent edits.
+Every scene includes one of each built-in element at a sensible starting position. New scenes show Player card and Match score by default; Team roster, Kill feed, and Text label start hidden. The Minimal HUD preset shows only Player card. Hidden elements remain selectable, and toggling visibility preserves layout, bindings, and component settings. Built-ins cannot be added or deleted individually. Different scenes can select different mock players. Missing players use the component's default fallback values. The inspector contains layout and component controls, without generic Element, Appearance, or State sections. Scene locks still prevent edits.
 
-The starter intentionally contains one working card. Text labels render as simple text; Match score, Team roster, and Kill feed remain editor placeholders and are omitted from Preview. Save is disabled: state is temporary, and refreshing resets it. No custom code import, live GSI, persistence, or scene transitions are implemented.
+Player Card is the fully implemented HUD component. Text labels render as simple text; Match score, Team roster, and Kill feed remain editor placeholders and are omitted from Preview. Save is disabled: state is temporary, and refreshing resets it. No custom code import, live GSI, persistence, or scene transitions are implemented.
 
 ### Module responsibilities
 

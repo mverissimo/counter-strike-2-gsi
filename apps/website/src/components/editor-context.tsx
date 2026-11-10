@@ -1,10 +1,9 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import {
-  createElement,
+  createSceneElements,
   constrainGeometry,
   initialDocument,
   playerBindings,
-  type ElementName,
   type EditorElement,
   type ElementProperties,
   type EditorScene,
@@ -25,16 +24,18 @@ function useEditorState() {
   function addScene() {
     let number = scenes.length + 1;
     while (scenes.some((item) => item.name === `Scene ${number}`)) number++;
+    const id = crypto.randomUUID();
     const item: EditorScene = {
-      id: crypto.randomUUID(),
+      id,
       name: `Scene ${number}`,
       visible: true,
       locked: false,
-      elements: [],
+      elements: createSceneElements(id),
     };
     setDocument((current) => ({ ...current, scenes: [...current.scenes, item] }));
     setSceneId(item.id);
     setSelectedElement(null);
+    return item.id;
   }
   function updateScene(id: string, update: (scene: EditorScene) => EditorScene) {
     setDocument((current) => ({
@@ -55,37 +56,19 @@ function useEditorState() {
       setSelectedElement(null);
     }
   }
-  function addElement(kind: ElementName = "Player card") {
-    if (!scene || scene.locked) return;
-    const existing = scene.elements.find((element) => element.kind === kind);
-    if (existing) {
-      setSelectedElement(existing.id);
-      return;
-    }
-    const element = createElement(kind, crypto.randomUUID());
-    element.x += scene.elements.length * 40;
-    element.y += scene.elements.length * 40;
-    updateScene(scene.id, (current) =>
-      current.locked || current.elements.some((item) => item.kind === kind)
+  function updateElement(id: string, update: (element: EditorElement) => EditorElement) {
+    const owner = scenes.find((item) => item.elements.some((element) => element.id === id));
+    if (!owner) return;
+    updateScene(owner.id, (current) =>
+      current.locked
         ? current
         : {
             ...current,
-            elements: [...current.elements, constrainGeometry(element, {})],
+            elements: current.elements.map((element) =>
+              element.id === id ? update(element) : element,
+            ),
           },
     );
-    setSelectedElement(element.id);
-  }
-  function updateElement(id: string, update: (element: EditorElement) => EditorElement) {
-    if (!scene) return;
-    updateScene(scene.id, (current) => {
-      if (current.locked) return current;
-      return {
-        ...current,
-        elements: current.elements.map((element) =>
-          element.id === id ? update(element) : element,
-        ),
-      };
-    });
   }
   function updateGeometry(id: string, patch: Partial<ElementProperties>) {
     updateElement(id, (item) => constrainGeometry(item, patch));
@@ -127,7 +110,6 @@ function useEditorState() {
     addScene,
     updateScene,
     deleteScene,
-    addElement,
     updateElement,
     updateProperties,
     updateGeometry,
